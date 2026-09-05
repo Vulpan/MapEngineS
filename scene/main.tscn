@@ -1,0 +1,137 @@
+[gd_scene format=3 uid="uid://cok0au5fqefcw"]
+
+[ext_resource type="Script" uid="uid://t5lq1sevb8ku" path="res://scripts/map/map.gd" id="1_v0l8b"]
+[ext_resource type="Script" uid="uid://bmj23e2r0pwas" path="res://scripts/camera/camera_controller.gd" id="2_v0l8b"]
+[ext_resource type="Theme" uid="uid://c8ywfcqxhclml" path="res://assets/main_theme.tres" id="3_0ha60"]
+[ext_resource type="Script" uid="uid://baf0r2q83uqro" path="res://scripts/player.gd" id="3_of57s"]
+[ext_resource type="Script" uid="uid://bpynidut866ax" path="res://scripts/ui/main_ui.gd" id="4_of57s"]
+[ext_resource type="PackedScene" uid="uid://dvwjefb3o5d0s" path="res://scene/ui/Boxes/data_box.tscn" id="5_4j5ol"]
+[ext_resource type="Script" uid="uid://bml0q05bcpuhm" path="res://scripts/ui/base_data_panel.gd" id="5_p1hux"]
+[ext_resource type="Script" uid="uid://dqk6clswed1r0" path="res://scripts/ui/top_menu_bar.gd" id="8_of57s"]
+[ext_resource type="Script" uid="uid://vgmo8omsfuwd" path="res://scripts/ui/bottom_right_menu.gd" id="9_b5f6u"]
+
+[node name="Main" type="Node" unique_id=1246805749]
+
+[node name="Map" type="Node2D" parent="." unique_id=1424198993 groups=["Map"]]
+script = ExtResource("1_v0l8b")
+is_active = false
+max_border_points = 1000
+draw_cells = false
+draw_points = false
+draw_land_mask_outline = false
+use_land_mask = true
+land_mask_path = "uid://dqksbbqed0hku"
+black_is_land = false
+use_border_mask = true
+generate_on_land_only = false
+
+[node name="Camera2D" type="Camera2D" parent="." unique_id=1914990198]
+script = ExtResource("2_v0l8b")
+
+[node name="Player" type="Node2D" parent="." unique_id=1456606552 groups=["Player"]]
+script = ExtResource("3_of57s")
+
+[node name="UI" type="CanvasLayer" parent="." unique_id=1957651830 groups=["UICanvasLayer"]]
+
+[node name="MainUI" type="Control" parent="UI" unique_id=1460538795]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("3_0ha60")
+script = ExtResource("4_of57s")
+
+[node name="TopMenuBar" type="MenuBar" parent="UI/MainUI" unique_id=910558369]
+layout_mode = 0
+offset_right = 35.0
+offset_bottom = 40.0
+script = ExtResource("8_of57s")
+
+[node name="file" type="PopupMenu" parent="UI/MainUI/TopMenuBar" unique_id=641140703]
+oversampling_override = 1.0
+
+[node name="edit" type="PopupMenu" parent="UI/MainUI/TopMenuBar" unique_id=1230865630]
+
+[node name="RightMenu" type="MarginContainer" parent="UI/MainUI" unique_id=219333387]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -364.0
+offset_bottom = 288.0
+grow_horizontal = 0
+
+[node name="RightMenuBox" type="HBoxContainer" parent="UI/MainUI/RightMenu" unique_id=545576256]
+layout_mode = 2
+theme_override_constants/separation = 16
+alignment = 2
+
+[node name="BaseDataPanel" type="PanelContainer" parent="UI/MainUI/RightMenu/RightMenuBox" unique_id=351761345]
+custom_minimum_size = Vector2(256, 256)
+layout_mode = 2
+script = ExtResource("5_p1hux")
+
+[node name="Scroll" type="ScrollContainer" parent="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel" unique_id=241456207]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel/Scroll" unique_id=776402127]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="MapNameDataBox" parent="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel/Scroll/VBox" unique_id=664772206 instance=ExtResource("5_4j5ol")]
+layout_mode = 2
+box_name = &"map_name"
+title = "name"
+
+[node name="MapSizeDataBox" parent="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel/Scroll/VBox" unique_id=1956851371 instance=ExtResource("5_4j5ol")]
+layout_mode = 2
+box_name = &"size"
+title = "size"
+
+[node name="MapScaleDataBox" parent="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel/Scroll/VBox" unique_id=1929525843 instance=ExtResource("5_4j5ol")]
+layout_mode = 2
+box_name = &"scale"
+title = "scale"
+
+[node name="RightIconsMenu" type="VBoxContainer" parent="UI/MainUI/RightMenu/RightMenuBox" unique_id=1309846761]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BaseDataButton" type="Button" parent="UI/MainUI/RightMenu/RightMenuBox/RightIconsMenu" unique_id=1780037601]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "Info"
+autowrap_mode = 2
+clip_text = true
+icon_alignment = 1
+
+[node name="BottomRightMenu" type="MarginContainer" parent="UI/MainUI" unique_id=977606136]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -32.0
+offset_top = -32.0
+grow_horizontal = 0
+grow_vertical = 0
+script = ExtResource("9_b5f6u")
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu" unique_id=493587116]
+layout_mode = 2
+
+[node name="RegionEditingButton" type="Button" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=1138703164]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "RE"
+autowrap_mode = 2
+clip_text = true
+icon_alignment = 1
+
+[connection signal="initialized" from="Map" to="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel" method="_on_map_initialized"]
+[connection signal="pressed" from="UI/MainUI/RightMenu/RightMenuBox/RightIconsMenu/BaseDataButton" to="UI/MainUI" method="_on_base_data_button_pressed"]
+[connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/RegionEditingButton" to="UI/MainUI/BottomRightMenu" method="_on_region_editing_button_pressed"]

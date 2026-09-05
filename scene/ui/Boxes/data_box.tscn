@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://dvwjefb3o5d0s"]
+
+[ext_resource type="Script" uid="uid://ceq60d25v6w2s" path="res://scripts/ui/boxes/data_box.gd" id="1_iqbgk"]
+
+[node name="DataBox" type="MarginContainer" unique_id=1126530204]
+offset_left = 11.0
+offset_right = 11.0
+offset_bottom = 23.0
+theme_override_constants/margin_left = 8
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 8
+theme_override_constants/margin_bottom = 4
+script = ExtResource("1_iqbgk")
+
+[node name="HBox" type="HBoxContainer" parent="." unique_id=664772206]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="TitleLabel" type="Label" parent="HBox" unique_id=1603432644]
+layout_mode = 2
+
+[node name="SepLabel" type="Label" parent="HBox" unique_id=147412548]
+layout_mode = 2
+text = ": "
+
+[node name="DataLabel" type="Label" parent="HBox" unique_id=747570114]
+layout_mode = 2

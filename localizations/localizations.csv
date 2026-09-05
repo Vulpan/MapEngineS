@@ -1,0 +1,24 @@
+key;pl;en
+file;Plik;File
+edit;Edycja;Edit
+new;Nowy;New
+load;Wczytaj;Load
+save;Zapisz;Save
+enter_name;Wprowadź nazwę;Enter name
+select;Wybierz;Select
+create_new_map;Stwórz nową mapę;Create new map
+confirm;Potwierdź;Confirm
+cancel;Anuluj;Cancel
+continents;Kontynenty;Continents
+name;Nazwa;Name
+enter_map_name;Wprowadź nazwę mapy;Enter map name
+height;Wysokość;Height
+width;Długość;Width
+map_render_scale;Skala mapy;Map scale
+borders;Granice;Borders
+border_size_warning;Obraz granic powinien mieć taki sam rozmiar jak obraz kontynentów;Border picture size should be same as continents
+should_have_same_value;Rozmiar powinien być identyczny;Should have same size
+
+name;Nazwa;Name
+size;Rozmiar;Size
+scale;Skala;Scale

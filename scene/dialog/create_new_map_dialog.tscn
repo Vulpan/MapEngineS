@@ -1,0 +1,169 @@
+[gd_scene format=3 uid="uid://bf7qte8cbii56"]
+
+[ext_resource type="Script" uid="uid://du0lbi03ifw6l" path="res://scripts/ui/dialog/create_new_map_dialog.gd" id="1_bhscn"]
+[ext_resource type="LabelSettings" uid="uid://dspqh4vmtjglp" path="res://assets/labels/gray_label.tres" id="2_64fi0"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_64fi0"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_bhscn"]
+
+[node name="CreateNewMapDialog" type="PopupPanel" unique_id=2025270565]
+oversampling_override = 1.0
+size = Vector2i(699, 364)
+visible = true
+script = ExtResource("1_bhscn")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=874622032]
+offset_left = 4.0
+offset_top = 4.0
+offset_right = 695.0
+offset_bottom = 360.0
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer" unique_id=1416698216]
+layout_mode = 2
+text = "create_new_map"
+horizontal_alignment = 1
+
+[node name="NameBox" type="HBoxContainer" parent="VBoxContainer" unique_id=2026641163]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="VBoxContainer/NameBox" unique_id=1526616799]
+layout_mode = 2
+text = "name"
+
+[node name="MapNameLineEdit" type="LineEdit" parent="VBoxContainer/NameBox" unique_id=1257868683]
+custom_minimum_size = Vector2(256, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "enter_map_name"
+
+[node name="CheckBox" type="CheckBox" parent="VBoxContainer" unique_id=845804257]
+layout_mode = 2
+
+[node name="PictureBox" type="HBoxContainer" parent="VBoxContainer" unique_id=1877950946]
+custom_minimum_size = Vector2(256, 0)
+layout_mode = 2
+
+[node name="PictureCheckbox" type="CheckBox" parent="VBoxContainer/PictureBox" unique_id=747538367]
+layout_mode = 2
+
+[node name="ContinentsTitleLabel" type="Label" parent="VBoxContainer/PictureBox" unique_id=2093370650]
+layout_mode = 2
+text = "continents"
+
+[node name="SelectedPicturePathLine" type="LineEdit" parent="VBoxContainer/PictureBox" unique_id=1670415926]
+custom_minimum_size = Vector2(256, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SelectPictureButton" type="Button" parent="VBoxContainer/PictureBox" unique_id=1365316151]
+layout_mode = 2
+text = "select"
+
+[node name="BorderPictureBox" type="HBoxContainer" parent="VBoxContainer" unique_id=927893553]
+custom_minimum_size = Vector2(256, 0)
+layout_mode = 2
+
+[node name="PanelContainer" type="PanelContainer" parent="VBoxContainer/BorderPictureBox" unique_id=563491996]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxEmpty_64fi0")
+
+[node name="BorderPictureCheckbox" type="CheckBox" parent="VBoxContainer/BorderPictureBox" unique_id=1732746958]
+layout_mode = 2
+disabled = true
+
+[node name="BordersTitleLabel" type="Label" parent="VBoxContainer/BorderPictureBox" unique_id=276830226]
+layout_mode = 2
+text = "borders"
+
+[node name="BorderSelectedPicturePathLine" type="LineEdit" parent="VBoxContainer/BorderPictureBox" unique_id=644160281]
+custom_minimum_size = Vector2(256, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BorderSelectPictureButton" type="Button" parent="VBoxContainer/BorderPictureBox" unique_id=375928555]
+layout_mode = 2
+text = "select"
+
+[node name="BorderWarningLabel" type="Label" parent="VBoxContainer" unique_id=1504962093]
+layout_mode = 2
+text = "border_size_warning"
+label_settings = ExtResource("2_64fi0")
+horizontal_alignment = 1
+
+[node name="MapSizeBox" type="HBoxContainer" parent="VBoxContainer" unique_id=472504320]
+layout_mode = 2
+alignment = 1
+
+[node name="HeightLabel" type="Label" parent="VBoxContainer/MapSizeBox" unique_id=1632921323]
+layout_mode = 2
+text = "height"
+
+[node name="HeightLineEdit" type="LineEdit" parent="VBoxContainer/MapSizeBox" unique_id=131396637]
+layout_mode = 2
+placeholder_text = "1024"
+alignment = 1
+
+[node name="VSeparator" type="VSeparator" parent="VBoxContainer/MapSizeBox" unique_id=198716937]
+custom_minimum_size = Vector2(8, 0)
+layout_mode = 2
+theme_override_styles/separator = SubResource("StyleBoxEmpty_bhscn")
+
+[node name="WidthLabel" type="Label" parent="VBoxContainer/MapSizeBox" unique_id=2073620376]
+layout_mode = 2
+text = "width"
+
+[node name="WidthLineEdit" type="LineEdit" parent="VBoxContainer/MapSizeBox" unique_id=654254562]
+layout_mode = 2
+placeholder_text = "1024"
+alignment = 1
+
+[node name="MapRenderScale" type="HBoxContainer" parent="VBoxContainer" unique_id=609783732]
+layout_mode = 2
+alignment = 1
+
+[node name="MapRenderScaleLabel" type="Label" parent="VBoxContainer/MapRenderScale" unique_id=1134345464]
+layout_mode = 2
+text = "map_render_scale"
+
+[node name="MapRenderSpinBox" type="SpinBox" parent="VBoxContainer/MapRenderScale" unique_id=1366640755]
+layout_mode = 2
+max_value = 10.0
+step = 0.01
+value = 1.0
+alignment = 1
+
+[node name="SameSizeBox" type="HBoxContainer" parent="VBoxContainer" unique_id=2127127936]
+layout_mode = 2
+alignment = 1
+
+[node name="SameSizeLabel" type="Label" parent="VBoxContainer/SameSizeBox" unique_id=1386376103]
+layout_mode = 2
+text = "should_have_same_value"
+
+[node name="SameSizeCheckBox" type="CheckBox" parent="VBoxContainer/SameSizeBox" unique_id=2107937025]
+layout_mode = 2
+
+[node name="ConfirmButtons" type="HBoxContainer" parent="VBoxContainer" unique_id=1090422414]
+layout_mode = 2
+alignment = 1
+
+[node name="ConfirmButton" type="Button" parent="VBoxContainer/ConfirmButtons" unique_id=1379758592]
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "confirm"
+
+[node name="CancelButton" type="Button" parent="VBoxContainer/ConfirmButtons" unique_id=1014220591]
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "cancel"
+
+[connection signal="text_changed" from="VBoxContainer/NameBox/MapNameLineEdit" to="." method="_on_map_name_line_edit_text_changed"]
+[connection signal="toggled" from="VBoxContainer/PictureBox/PictureCheckbox" to="." method="_on_picture_checkbox_toggled"]
+[connection signal="pressed" from="VBoxContainer/PictureBox/SelectPictureButton" to="." method="_on_select_picture_button_pressed" binds= [0]]
+[connection signal="toggled" from="VBoxContainer/BorderPictureBox/BorderPictureCheckbox" to="." method="_on_border_picture_checkbox_toggled"]
+[connection signal="pressed" from="VBoxContainer/BorderPictureBox/BorderSelectPictureButton" to="." method="_on_select_picture_button_pressed" binds= [1]]
+[connection signal="toggled" from="VBoxContainer/SameSizeBox/SameSizeCheckBox" to="." method="_on_same_size_check_box_toggled"]
+[connection signal="pressed" from="VBoxContainer/ConfirmButtons/ConfirmButton" to="." method="_on_confirm_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/ConfirmButtons/CancelButton" to="." method="_on_cancel_button_pressed"]
