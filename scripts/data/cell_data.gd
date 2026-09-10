@@ -20,6 +20,7 @@ var component_id: int = -1
 var is_land: bool = true
 var is_water: bool = false
 var is_coastal: bool = false
+var is_coastal_clipped: bool = false # wynik classify_cell; is_coastal = clip LUB dotyk z wodą
 
 
 func _init(_id: int = -1, _site: Vector2 = Vector2.ZERO) -> void:

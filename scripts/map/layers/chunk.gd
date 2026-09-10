@@ -28,6 +28,15 @@ func set_cells(ids: Array) -> void:
 	cell_ids = ids
 
 
+func add_cell_id(id: int) -> void:
+	if id not in cell_ids:
+		cell_ids.append(id)
+
+
+func remove_cell_id(id: int) -> void:
+	cell_ids.erase(id)
+
+
 func refresh() -> void:
 	queue_redraw()
 

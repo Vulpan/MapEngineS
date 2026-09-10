@@ -12,12 +12,12 @@ config_version=5
 
 config/name="MapEngine"
 run/main_scene="uid://cok0au5fqefcw"
-config/features=PackedStringArray("4.6", "Forward Plus")
+config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
 [autoload]
 
-Global="*uid://bj4xyscgs53wl"
+Global="*res://utils/global.gd"
 
 [display]
 

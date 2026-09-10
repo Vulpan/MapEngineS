@@ -9,6 +9,12 @@
 [ext_resource type="Script" uid="uid://bml0q05bcpuhm" path="res://scripts/ui/base_data_panel.gd" id="5_p1hux"]
 [ext_resource type="Script" uid="uid://dqk6clswed1r0" path="res://scripts/ui/top_menu_bar.gd" id="8_of57s"]
 [ext_resource type="Script" uid="uid://vgmo8omsfuwd" path="res://scripts/ui/bottom_right_menu.gd" id="9_b5f6u"]
+[ext_resource type="Script" uid="uid://442mlexncrsr" path="res://scene/ui/create_new_region_container.gd" id="10_k65ib"]
+[ext_resource type="PackedScene" uid="uid://bkqgrs5kebyg0" path="res://scene/ui/Boxes/input_data_box.tscn" id="10_tqoya"]
+[ext_resource type="PackedScene" uid="uid://cclndcrx8ln4y" path="res://scene/ui/Boxes/input_number_data_box.tscn" id="12_wscrc"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_52qdk"]
+font_size = 20
 
 [node name="Main" type="Node" unique_id=1246805749]
 
@@ -124,7 +130,22 @@ script = ExtResource("9_b5f6u")
 [node name="VBox" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu" unique_id=493587116]
 layout_mode = 2
 
-[node name="RegionEditingButton" type="Button" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=1138703164]
+[node name="VBoxTop" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=658907025]
+layout_mode = 2
+size_flags_horizontal = 8
+
+[node name="RegionEditingButtonsBox" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu/VBox/VBoxTop" unique_id=287062655]
+layout_mode = 2
+
+[node name="CreateFirstLevelRegionButton" type="Button" parent="UI/MainUI/BottomRightMenu/VBox/VBoxTop/RegionEditingButtonsBox" unique_id=76854393]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+text = "CR1"
+autowrap_mode = 2
+clip_text = true
+icon_alignment = 1
+
+[node name="RegionEditingButton" type="Button" parent="UI/MainUI/BottomRightMenu/VBox/VBoxTop" unique_id=1138703164]
 custom_minimum_size = Vector2(40, 40)
 layout_mode = 2
 text = "RE"
@@ -132,6 +153,97 @@ autowrap_mode = 2
 clip_text = true
 icon_alignment = 1
 
+[node name="VBoxBottom" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=393714315]
+layout_mode = 2
+
+[node name="CurrentStateLabel" type="Label" parent="UI/MainUI/BottomRightMenu/VBox/VBoxBottom" unique_id=1125231523]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="CreateNewRegionContainer" type="CenterContainer" parent="UI/MainUI" unique_id=1406802099]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -208.0
+offset_top = -61.0
+offset_right = 208.0
+offset_bottom = 61.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("10_k65ib")
+
+[node name="Panel" type="PanelContainer" parent="UI/MainUI/CreateNewRegionContainer" unique_id=1040610378]
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="UI/MainUI/CreateNewRegionContainer/Panel" unique_id=111312605]
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin" unique_id=619070952]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox" unique_id=1107492407]
+layout_mode = 2
+text = "Create new region"
+label_settings = SubResource("LabelSettings_52qdk")
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox" unique_id=2012429727]
+layout_mode = 2
+
+[node name="BaseData" type="Label" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer" unique_id=1733566533]
+layout_mode = 2
+text = "Base Data"
+
+[node name="NameInputDataBox" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer" unique_id=1879245313 instance=ExtResource("10_tqoya")]
+layout_mode = 2
+box_name = &"name"
+title = "name"
+placeholder = "enter_name"
+
+[node name="AmdLevelInputNumberDataBox" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer" unique_id=2042530364 instance=ExtResource("12_wscrc")]
+layout_mode = 2
+box_name = &"adm_level"
+title = "adm_level"
+
+[node name="ColorBox" type="HBoxContainer" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer" unique_id=1935735431]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="ColorLabel" type="Label" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer/ColorBox" unique_id=1392295201]
+layout_mode = 2
+text = "color"
+
+[node name="SeparatorLabel_" type="Label" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer/ColorBox" unique_id=1248421038]
+layout_mode = 2
+text = ": "
+
+[node name="ColorPickerButton" type="ColorPickerButton" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer/ColorBox" unique_id=1928566351]
+layout_mode = 2
+size_flags_horizontal = 3
+edit_alpha = false
+edit_intensity = false
+
+[node name="BottomButtonsBox" type="HBoxContainer" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox" unique_id=1378770658]
+layout_mode = 2
+alignment = 1
+
+[node name="ConfirmButton" type="Button" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/BottomButtonsBox" unique_id=490974456]
+layout_mode = 2
+text = "confirm"
+
+[node name="CancelButton" type="Button" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/BottomButtonsBox" unique_id=1809679100]
+layout_mode = 2
+text = "cancel"
+
 [connection signal="initialized" from="Map" to="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel" method="_on_map_initialized"]
 [connection signal="pressed" from="UI/MainUI/RightMenu/RightMenuBox/RightIconsMenu/BaseDataButton" to="UI/MainUI" method="_on_base_data_button_pressed"]
-[connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/RegionEditingButton" to="UI/MainUI/BottomRightMenu" method="_on_region_editing_button_pressed"]
+[connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/VBoxTop/RegionEditingButtonsBox/CreateFirstLevelRegionButton" to="UI/MainUI/BottomRightMenu" method="_on_create_first_level_region_button_pressed"]
+[connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/VBoxTop/RegionEditingButton" to="UI/MainUI/BottomRightMenu" method="_on_region_editing_button_pressed"]
+[connection signal="pressed" from="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/BottomButtonsBox/ConfirmButton" to="UI/MainUI/CreateNewRegionContainer" method="_on_confirm_button_pressed"]
+[connection signal="pressed" from="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/BottomButtonsBox/CancelButton" to="UI/MainUI/CreateNewRegionContainer" method="_on_cancel_button_pressed"]

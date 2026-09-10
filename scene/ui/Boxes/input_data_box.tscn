@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://bkqgrs5kebyg0"]
+
+[ext_resource type="Script" uid="uid://c61bybntvhtpo" path="res://scripts/ui/boxes/input_data_box.gd" id="1_1mdcs"]
+
+[node name="InputDataBox" type="HBoxContainer" unique_id=1879245313]
+custom_minimum_size = Vector2(384, 0)
+theme_override_constants/separation = 0
+script = ExtResource("1_1mdcs")
+
+[node name="TitleLabel" type="Label" parent="." unique_id=1249824213]
+layout_mode = 2
+
+[node name="SeparatorLabel" type="Label" parent="." unique_id=1208090075]
+layout_mode = 2
+text = ": "
+
+[node name="ContentLineEdit" type="LineEdit" parent="." unique_id=122829965]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[connection signal="text_changed" from="ContentLineEdit" to="." method="_on_content_line_edit_text_changed"]

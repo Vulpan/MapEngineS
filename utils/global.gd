@@ -6,4 +6,4 @@ extends Node
 var settings_file: String = "settings.json"
 var land_mask_file: String = "land_mask"
 var border_mask_file: String = "border_mask"
-var map_file_name: String = "map.json"
+var map_bin_file: String = "map.bin"

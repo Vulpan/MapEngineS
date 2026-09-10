@@ -64,49 +64,44 @@ func rebuild_all() -> void:
 			chunks[key].refresh()
 
 
+## Aktualizuje przypisania komórek do chunków inkrementalnie,
+## bez skanowania całego indeksu cell_to_chunk (kiedyś O(n) na chunka).
 func refresh_chunks_for_cells(cell_ids: Array) -> void:
 	var dirty_chunks: Dictionary = {}
-	
+
 	for cell_id in cell_ids:
 		if main_ref.map_data.cells.has(cell_id):
 			var cell: CellData = main_ref.map_data.cells[cell_id]
 			var new_key := _chunk_key_for_position(cell.site)
+			var old_key: String = cell_to_chunk.get(cell_id, "")
+
+			if old_key != new_key:
+				if old_key != "" and chunks.has(old_key):
+					chunks[old_key].remove_cell_id(cell_id)
+					dirty_chunks[old_key] = true
+				if chunks.has(new_key):
+					chunks[new_key].add_cell_id(cell_id)
+				cell_to_chunk[cell_id] = new_key
+
 			dirty_chunks[new_key] = true
-			
-			var old_key = cell_to_chunk.get(cell_id, "")
-			if old_key != "" and old_key != new_key:
-				dirty_chunks[old_key] = true
-			
-			cell_to_chunk[cell_id] = new_key
 		else:
-			var old_key = cell_to_chunk.get(cell_id, "")
-			if old_key != "":
+			var old_key: String = cell_to_chunk.get(cell_id, "")
+			if old_key != "" and chunks.has(old_key):
+				chunks[old_key].remove_cell_id(cell_id)
 				dirty_chunks[old_key] = true
-				cell_to_chunk.erase(cell_id)
-	
+			cell_to_chunk.erase(cell_id)
+
 	for key in dirty_chunks.keys():
-		if not chunks.has(key):
-			continue
-		
-		var ids: Array = []
-		for cid in cell_to_chunk.keys():
-			if cell_to_chunk[cid] == key:
-				ids.append(cid)
-		
-		chunks[key].set_cells(ids)
-		chunks[key].refresh()
+		if chunks.has(key):
+			chunks[key].refresh()
 
 
 func remove_cell(cell_id: int) -> void:
-	var key = cell_to_chunk.get(cell_id, "")
+	var key: String = cell_to_chunk.get(cell_id, "")
 	cell_to_chunk.erase(cell_id)
-	
+
 	if key != "" and chunks.has(key):
-		var ids: Array = []
-		for cid in cell_to_chunk.keys():
-			if cell_to_chunk[cid] == key:
-				ids.append(cid)
-		chunks[key].set_cells(ids)
+		chunks[key].remove_cell_id(cell_id)
 		chunks[key].refresh()
 
 

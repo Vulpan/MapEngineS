@@ -99,6 +99,183 @@ func unassign_cell_from_region(cell_id: int) -> void:
 	cell.region_id = -1
 
 
+## Kolumnowy (SoA) payload binarny — bez kluczy-stringów per komórka,
+## z natywnymi typami (PackedVector2Array itd.). store_var to skompresuje
+## dobrze i odczyta natychmiastowo (bez parsera tekstu).
+func to_binary_payload() -> Dictionary:
+	var ids := PackedInt32Array()
+	var sites := PackedVector2Array()
+	var doms := PackedByteArray()
+	var comps := PackedInt32Array()
+	var regs := PackedInt32Array()
+	var flags := PackedByteArray()
+
+	var poly_flat := PackedFloat32Array()
+	var poly_off := PackedInt32Array()
+	var neigh_flat := PackedInt32Array()
+	var neigh_off := PackedInt32Array()
+	var coastal_flat := PackedInt32Array()
+	var coastal_off := PackedInt32Array()
+
+	var meta_idx := PackedInt32Array()
+	var meta_arr: Array = []
+
+	for id in cells.keys():
+		var c: CellData = cells[id]
+		ids.append(id)
+		sites.append(c.site)
+		doms.append(c.domain)
+		comps.append(c.component_id)
+		regs.append(c.region_id)
+		var f := 0
+		if c.is_land: f |= 1
+		if c.is_water: f |= 2
+		if c.is_coastal: f |= 4
+		flags.append(f)
+
+		poly_off.append(poly_flat.size())
+		for v in c.polygon:
+			poly_flat.append(v.x)
+			poly_flat.append(v.y)
+
+		neigh_off.append(neigh_flat.size())
+		for n in c.neighbor_ids:
+			neigh_flat.append(n)
+
+		coastal_off.append(coastal_flat.size())
+		for n in c.coastal_neighbor_ids:
+			coastal_flat.append(n)
+
+		if not c.meta.is_empty():
+			meta_idx.append(ids.size() - 1)
+			meta_arr.append(c.meta.duplicate(true))
+
+	poly_off.append(poly_flat.size())
+	neigh_off.append(neigh_flat.size())
+	coastal_off.append(coastal_flat.size())
+
+	var reg_ids := PackedInt32Array()
+	var reg_names := PackedStringArray()
+	var reg_flat := PackedInt32Array()
+	var reg_off := PackedInt32Array()
+	var reg_meta: Array = []
+	for rid in regions.keys():
+		var r: RegionData = regions[rid]
+		reg_ids.append(rid)
+		reg_names.append(r.name)
+		reg_off.append(reg_flat.size())
+		for cid in r.cell_ids:
+			reg_flat.append(cid)
+		reg_meta.append(r.meta.duplicate(true))
+	reg_off.append(reg_flat.size())
+
+	return {
+		"version": 2,
+		"bounds": bounds,
+		"next_cell_id": next_cell_id,
+		"next_region_id": next_region_id,
+		"cell_ids": ids,
+		"cell_sites": sites,
+		"cell_domain": doms,
+		"cell_component": comps,
+		"cell_region": regs,
+		"cell_flags": flags,
+		"poly_flat": poly_flat,
+		"poly_off": poly_off,
+		"neigh_flat": neigh_flat,
+		"neigh_off": neigh_off,
+		"coastal_flat": coastal_flat,
+		"coastal_off": coastal_off,
+		"meta_idx": meta_idx,
+		"meta_arr": meta_arr,
+		"reg_ids": reg_ids,
+		"reg_names": reg_names,
+		"reg_flat": reg_flat,
+		"reg_off": reg_off,
+		"reg_meta": reg_meta,
+	}
+
+
+func from_binary_payload(d: Dictionary) -> void:
+	clear()
+	version = int(d.get("version", 2))
+	bounds = d.get("bounds", Rect2())
+	next_cell_id = int(d.get("next_cell_id", 1))
+	next_region_id = int(d.get("next_region_id", 1))
+
+	var ids: PackedInt32Array = d.get("cell_ids", PackedInt32Array())
+	var sites: PackedVector2Array = d.get("cell_sites", PackedVector2Array())
+	var doms: PackedByteArray = d.get("cell_domain", PackedByteArray())
+	var comps: PackedInt32Array = d.get("cell_component", PackedInt32Array())
+	var regs: PackedInt32Array = d.get("cell_region", PackedInt32Array())
+	var flags: PackedByteArray = d.get("cell_flags", PackedByteArray())
+	var poly_flat: PackedFloat32Array = d.get("poly_flat", PackedFloat32Array())
+	var poly_off: PackedInt32Array = d.get("poly_off", PackedInt32Array())
+	var neigh_flat: PackedInt32Array = d.get("neigh_flat", PackedInt32Array())
+	var neigh_off: PackedInt32Array = d.get("neigh_off", PackedInt32Array())
+	var coastal_flat: PackedInt32Array = d.get("coastal_flat", PackedInt32Array())
+	var coastal_off: PackedInt32Array = d.get("coastal_off", PackedInt32Array())
+	var meta_idx: PackedInt32Array = d.get("meta_idx", PackedInt32Array())
+	var meta_arr: Array = d.get("meta_arr", [])
+
+	var meta_map := {}
+	for i in range(meta_idx.size()):
+		meta_map[meta_idx[i]] = meta_arr[i]
+
+	for i in range(ids.size()):
+		var c := CellData.new(ids[i], sites[i])
+		c.domain = doms[i]
+		c.component_id = comps[i]
+		c.region_id = regs[i]
+		c.is_land = (flags[i] & 1) != 0
+		c.is_water = (flags[i] & 2) != 0
+		c.is_coastal = (flags[i] & 4) != 0
+
+		var poly := PackedVector2Array()
+		var start := poly_off[i]
+		var stop := poly_off[i + 1]
+		poly.resize(int((stop - start) / 2.0))
+		for j in range(start, stop, 2):
+			poly[int((j - start) / 2.0)] = Vector2(poly_flat[j], poly_flat[j + 1])
+		c.polygon = poly
+
+		var ns := neigh_off[i]
+		var ne := neigh_off[i + 1]
+		var narr: Array[int] = []
+		narr.resize(ne - ns)
+		for j in range(ne - ns):
+			narr[j] = neigh_flat[ns + j]
+		c.neighbor_ids = narr
+
+		var cs := coastal_off[i]
+		var ce := coastal_off[i + 1]
+		var carr: Array[int] = []
+		carr.resize(ce - cs)
+		for j in range(ce - cs):
+			carr[j] = coastal_flat[cs + j]
+		c.coastal_neighbor_ids = carr
+
+		if meta_map.has(i):
+			c.meta = meta_map[i].duplicate(true)
+
+		cells[c.id] = c
+
+	var reg_ids: PackedInt32Array = d.get("reg_ids", PackedInt32Array())
+	var reg_names: PackedStringArray = d.get("reg_names", PackedStringArray())
+	var reg_flat: PackedInt32Array = d.get("reg_flat", PackedInt32Array())
+	var reg_off: PackedInt32Array = d.get("reg_off", PackedInt32Array())
+	var reg_meta: Array = d.get("reg_meta", [])
+	for i in range(reg_ids.size()):
+		var r := RegionData.new(reg_ids[i], reg_names[i])
+		var rs := reg_off[i]
+		var re := reg_off[i + 1]
+		for j in range(rs, re):
+			r.cell_ids.append(reg_flat[j])
+		if i < reg_meta.size():
+			r.meta = reg_meta[i].duplicate(true)
+		regions[r.id] = r
+
+
 func to_dict() -> Dictionary:
 	var cell_arr: Array = []
 	for id in cells.keys():

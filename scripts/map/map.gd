@@ -52,10 +52,14 @@ signal initialized
 @export var minimum_points_per_island := 1
 @export var minimum_island_area := 128.0
 
+# Wypisuje rozbicie czasu operacji edycyjnych (add/remove/move) na sekcje.
+@export var profile_ops := false
+
 @export var coastal_epsilon := 1.5
 
 var bounds: Rect2
 var rng := RandomNumberGenerator.new()
+@export var randomization_seed: int = 0  # 0 = losowe; >0 = powtarzalna mapa (debug/testy)
 var effective_width: int
 var effective_height: int
 
@@ -71,10 +75,20 @@ var cell_id_to_site: Dictionary = {} # int -> Vector2
 
 var component_managers: Dictionary = {} # "domain:component" -> DynamicDelaunayVoronoi
 
+var site_index := SpatialHash2D.new(32.0) # indeks przestrzenny site'ów (O(1) zamiast skanów O(n))
+
+# Siatki przestrzenne dla sąsiedztwa przybrzeżnego (dualne: woda + ląd).
+var water_grid: Dictionary = {}        # Vector2i -> Array[int] (id komórek wodnych)
+var land_grid: Dictionary = {}         # Vector2i -> Array[int] (id komórek lądowych)
+var water_grid_cells: Dictionary = {}  # cell_id -> Array[Vector2i] (zajmowane kubełki)
+var land_grid_cells: Dictionary = {}
+var coastal_grid_size := 128.0
+
 var selected_cell_id: int = -1
 var selected_region_id: int = -1
 
 var chunk_render_layer: ChunkRenderLayer
+var water_back_layer: WaterBackLayer
 var highlight_layer: HighlightLayer
 var border_layer: BorderLayer
 var mask_layer: MaskLayer
@@ -86,7 +100,10 @@ func _ready() -> void:
 
 
 func initialize() -> void:
-	rng.randomize()
+	if randomization_seed != 0:
+		rng.seed = randomization_seed
+	else:
+		rng.randomize()
 	effective_width = int(map_width * map_render_scale)
 	effective_height = int(map_height * map_render_scale)
 	bounds = Rect2(0, 0, effective_width, effective_height)
@@ -168,6 +185,14 @@ func setup_layers() -> void:
 	container.name = "RenderLayers"
 	add_child(container)
 	
+	# 0. woda — rysowana GLOBALNIE pod chunkami (kolejność drzewa!), bo poligony
+	# wodne przekraczają granice chunków i sibling CanvasItem'y nie zachowują
+	# per-chunk porządku "woda pod lądem"
+	water_back_layer = WaterBackLayer.new()
+	water_back_layer.name = "WaterBackLayer"
+	container.add_child(water_back_layer)
+	water_back_layer.set_main(self)
+	
 	# 1. chunk render (fill wody + lądu)
 	chunk_render_layer = ChunkRenderLayer.new()
 	chunk_render_layer.name = "ChunkRenderLayer"
@@ -220,6 +245,7 @@ func update_layers() -> void:
 func _generate_initial_cells(count: int) -> void:
 	map_data.clear()
 	map_data.bounds = bounds
+	site_index.clear()
 
 	var created := 0
 	var water_count := 0
@@ -265,6 +291,8 @@ func _generate_initial_cells(count: int) -> void:
 			
 			var cell_a := map_data.create_cell(a)
 			var cell_b := map_data.create_cell(b)
+			site_index.insert(cell_a.id, a)
+			site_index.insert(cell_b.id, b)
 			
 			if use_land_mask and land_mask_processor != null:
 				cell_a.domain = land_mask_processor.sample_domain(a)
@@ -313,6 +341,7 @@ func _generate_initial_cells(count: int) -> void:
 						continue
 
 				var cell := map_data.create_cell(site)
+				site_index.insert(cell.id, site)
 				cell.domain = CellData.DOMAIN_LAND
 				cell.component_id = island_index
 				created += 1
@@ -352,6 +381,7 @@ func _generate_initial_cells(count: int) -> void:
 			water_count += 1
 		
 		var cell := map_data.create_cell(site)
+		site_index.insert(cell.id, site)
 		cell.domain = domain
 		cell.component_id = comp_id
 
@@ -362,12 +392,7 @@ func _generate_initial_cells(count: int) -> void:
 
 
 func _site_exists_near(pos: Vector2, min_dist: float) -> bool:
-	var min_dist_sqr := min_dist * min_dist
-	for cell_id in map_data.cells.keys():
-		var cell: CellData = map_data.cells[cell_id]
-		if cell.site.distance_squared_to(pos) <= min_dist_sqr:
-			return true
-	return false
+	return site_index.has_point_within(pos, min_dist)
 
 
 # =========================================================
@@ -378,12 +403,14 @@ func _rebuild_lookup_caches() -> void:
 	site_to_cell_id.clear()
 	cell_id_to_site.clear()
 	points.clear()
+	site_index.clear()
 
 	for cell_id in map_data.cells.keys():
 		var cell: CellData = map_data.cells[cell_id]
 		site_to_cell_id[cell.site] = cell.id
 		cell_id_to_site[cell.id] = cell.site
 		points.append(cell.site)
+		site_index.insert(cell.id, cell.site)
 
 
 func _manager_key(domain: int, component_id: int) -> String:
@@ -414,6 +441,7 @@ func rebuild_geometry_from_map_data() -> void:
 
 	var grouped_points := _group_points_by_component()
 	var start := Time.get_ticks_msec()
+	var t_build := 0
 
 	for key in grouped_points.keys():
 		var pts: Array[Vector2] = []
@@ -432,17 +460,26 @@ func rebuild_geometry_from_map_data() -> void:
 				manager.set_base_polygon(component_poly)
 
 		if pts.size() > 0:
+			var tb := Time.get_ticks_msec()
 			manager.build(pts, bounds)
+			t_build += Time.get_ticks_msec() - tb
 
 		component_managers[key] = manager
 
+	var t1 := Time.get_ticks_msec()
 	_rebuild_component_cached_cells()
 	_sync_geometry_from_component_managers()
+	var t_sync := Time.get_ticks_msec() - t1
+
+	t1 = Time.get_ticks_msec()
 	_rebuild_coastal_adjacency()
+	var t_coastal := Time.get_ticks_msec() - t1
 
 	var elapsed := Time.get_ticks_msec() - start
-	print("Component geometry rebuild: ", elapsed, " ms | groups=", component_managers.size())
+	print("Component geometry rebuild: ", elapsed, " ms | groups=", component_managers.size(),
+		" | build=", t_build, "ms sync=", t_sync, "ms coastal=", t_coastal, "ms")
 	chunk_render_layer.rebuild_all()
+	_queue_water_redraw()
 	update_layers()
 
 
@@ -458,81 +495,238 @@ func _rebuild_component_cached_cells() -> void:
 
 func _sync_geometry_from_component_managers() -> void:
 	for cell_id in map_data.cells.keys():
-		var cell: CellData = map_data.cells[cell_id]
-		cell.polygon = PackedVector2Array()
-		cell.neighbor_ids.clear()
-		cell.coastal_neighbor_ids.clear()
-		cell.is_land = cell.domain == CellData.DOMAIN_LAND
-		cell.is_water = cell.domain == CellData.DOMAIN_WATER
-		cell.is_coastal = false
+		_sync_single_cell(map_data.cells[cell_id])
 
-	for cell_id in map_data.cells.keys():
-		var cell: CellData = map_data.cells[cell_id]
-		var site := cell.site
 
-		if not cached_cells.has(site):
+## Synchronizuje wyłącznie komórki dotknięte ostatnią operacją w danym managerze
+## (zamiast pełnego przejazdu po wszystkich komórkach z przycinaniem polygonów).
+func _sync_cells_for_sites(manager: DynamicDelaunayVoronoi, sites_to_sync: Array) -> void:
+	for s in sites_to_sync:
+		if manager.sites.has(s):
+			cached_cells[s] = [manager.sites[s], manager.neighbors.get(s, [])]
+		else:
+			cached_cells.erase(s)
+
+	for s in sites_to_sync:
+		if not site_to_cell_id.has(s):
 			continue
+		var cell: CellData = map_data.cells[site_to_cell_id[s]]
+		_sync_single_cell(cell)
 
-		var original_poly: PackedVector2Array = cached_cells[site][0]
-		var neigh_sites: Array = cached_cells[site][1]
 
-		var final_poly := original_poly
+func _sync_single_cell(cell: CellData) -> void:
+	cell.polygon = PackedVector2Array()
+	cell.neighbor_ids.clear()
+	# UWAGA: NIE czyścimy tu coastal_neighbor_ids — inkrementalna aktualizacja
+	# wybrzeża (_update_coastal_for_cells) sama rozłącza dotknięte komórki
+	# obustronnie; czyszczenie w tym miejscu zostawiałoby partnerom wiszące
+	# referencje (asymetria linków).
+	cell.is_land = cell.domain == CellData.DOMAIN_LAND
+	cell.is_water = cell.domain == CellData.DOMAIN_WATER
+	cell.is_coastal_clipped = false
+	cell.is_coastal = false
 
-		if use_land_mask and land_mask_processor != null and cell.domain == CellData.DOMAIN_LAND:
-			final_poly = land_mask_processor.clip_polygon_to_component(
-				original_poly,
-				cell.site,
-				cell.domain,
-				cell.component_id
-			)
+	var site := cell.site
 
-			var info := land_mask_processor.classify_cell(
-				site,
-				original_poly,
-				final_poly,
-				cell.domain
-			)
-			cell.is_land = info["is_land"]
-			cell.is_water = info["is_water"]
-			cell.is_coastal = info["is_coastal"]
+	if not cached_cells.has(site):
+		return
 
-		cell.polygon = final_poly
+	var original_poly: PackedVector2Array = cached_cells[site][0]
+	var neigh_sites: Array = cached_cells[site][1]
 
-		var neigh_ids: Array[int] = []
-		for neigh_site in neigh_sites:
-			if site_to_cell_id.has(neigh_site):
-				var neigh_id: int = site_to_cell_id[neigh_site]
-				if map_data.cells.has(neigh_id):
-					var neigh_cell: CellData = map_data.cells[neigh_id]
-					if neigh_cell.domain == cell.domain and neigh_cell.component_id == cell.component_id:
-						neigh_ids.append(neigh_id)
+	var final_poly := original_poly
 
-		cell.neighbor_ids = neigh_ids
+	if use_land_mask and land_mask_processor != null and cell.domain == CellData.DOMAIN_LAND:
+		final_poly = land_mask_processor.clip_polygon_to_component(
+			original_poly,
+			cell.site,
+			cell.domain,
+			cell.component_id
+		)
+
+		var info := land_mask_processor.classify_cell(
+			site,
+			original_poly,
+			final_poly,
+			cell.domain
+		)
+		cell.is_land = info["is_land"]
+		cell.is_water = info["is_water"]
+		cell.is_coastal_clipped = info["is_coastal"]
+		cell.is_coastal = info["is_coastal"]
+
+	cell.polygon = final_poly
+
+	var neigh_ids: Array[int] = []
+	for neigh_site in neigh_sites:
+		if site_to_cell_id.has(neigh_site):
+			var neigh_id: int = site_to_cell_id[neigh_site]
+			if map_data.cells.has(neigh_id):
+				var neigh_cell: CellData = map_data.cells[neigh_id]
+				if neigh_cell.domain == cell.domain and neigh_cell.component_id == cell.component_id:
+					neigh_ids.append(neigh_id)
+
+	cell.neighbor_ids = neigh_ids
 
 
 func _rebuild_coastal_adjacency() -> void:
-	var land_cells: Array = []
-	var water_cells: Array = []
+	water_grid.clear()
+	land_grid.clear()
+	water_grid_cells.clear()
+	land_grid_cells.clear()
 
+	# Reset połączeń. Flaga wynikowa = clip do maski (is_coastal_clipped) LUB dotyk z wodą.
 	for cell_id in map_data.cells.keys():
 		var cell: CellData = map_data.cells[cell_id]
 		cell.coastal_neighbor_ids.clear()
+		cell.is_coastal = cell.is_coastal_clipped
 
+	for cell_id in map_data.cells.keys():
+		var cell: CellData = map_data.cells[cell_id]
 		if cell.polygon.size() < 2:
 			continue
-
-		if cell.domain == CellData.DOMAIN_LAND:
-			land_cells.append(cell)
+		if cell.domain == CellData.DOMAIN_WATER:
+			_coastal_grid_insert(water_grid, water_grid_cells, cell)
 		else:
-			water_cells.append(cell)
+			_coastal_grid_insert(land_grid, land_grid_cells, cell)
 
-	for land_cell in land_cells:
-		for water_cell in water_cells:
-			if _polygons_touch(land_cell.polygon, water_cell.polygon, coastal_epsilon):
-				land_cell.coastal_neighbor_ids.append(water_cell.id)
-				water_cell.coastal_neighbor_ids.append(land_cell.id)
-				land_cell.is_coastal = true
-				water_cell.is_coastal = true
+	for cell_id in map_data.cells.keys():
+		var cell: CellData = map_data.cells[cell_id]
+		if cell.domain != CellData.DOMAIN_LAND or cell.polygon.size() < 2:
+			continue
+		for water_id in _coastal_grid_query(water_grid, _polygon_bounds(cell.polygon)):
+			_try_coastal_link(cell, map_data.cells[water_id])
+
+
+## Inkrementalna aktualizacja połączeń przybrzeżnych dla dotkniętych komórek —
+## zamiast pełnego rebuildu O(n) przy każdej operacji edycyjnej.
+## removed_coastal: cell_id -> Array[int] (dawni partnerzy) dla komórek już usuniętych.
+func _update_coastal_for_cells(cell_ids: Array, removed_coastal: Dictionary = {}) -> void:
+	# dedupe identyfikatorów (ten sam site może przyjść z dwóch managerów)
+	var unique := {}
+	for id in cell_ids:
+		unique[id] = true
+	cell_ids = unique.keys()
+
+	# 1. Sprzątnij powiązania wsteczne usuniętych komórek.
+	for rid in removed_coastal.keys():
+		_coastal_grid_remove(water_grid, water_grid_cells, rid)
+		_coastal_grid_remove(land_grid, land_grid_cells, rid)
+		for pid in removed_coastal[rid]:
+			var partner: CellData = map_data.cells.get(pid, null)
+			if partner != null:
+				partner.coastal_neighbor_ids.erase(rid)
+				partner.is_coastal = partner.is_coastal_clipped or not partner.coastal_neighbor_ids.is_empty()
+
+	# 2. Odepnij dotknięte komórki (obustronnie) i wysuń je z obu siatek.
+	for id in cell_ids:
+		var cell: CellData = map_data.cells.get(id, null)
+		if cell == null:
+			continue
+		for pid in cell.coastal_neighbor_ids:
+			var partner: CellData = map_data.cells.get(pid, null)
+			if partner != null:
+				partner.coastal_neighbor_ids.erase(id)
+				partner.is_coastal = partner.is_coastal_clipped or not partner.coastal_neighbor_ids.is_empty()
+		cell.coastal_neighbor_ids.clear()
+		cell.is_coastal = cell.is_coastal_clipped
+		_coastal_grid_remove(water_grid, water_grid_cells, id)
+		_coastal_grid_remove(land_grid, land_grid_cells, id)
+
+	# 3. Włóż dotknięte komórki z powrotem do odpowiednich siatek.
+	for id in cell_ids:
+		var cell: CellData = map_data.cells.get(id, null)
+		if cell == null or cell.polygon.size() < 2:
+			continue
+		if cell.domain == CellData.DOMAIN_WATER:
+			_coastal_grid_insert(water_grid, water_grid_cells, cell)
+		else:
+			_coastal_grid_insert(land_grid, land_grid_cells, cell)
+
+	# 4. Linkuj na nowo (dedupe w _try_coastal_link).
+	for id in cell_ids:
+		var cell: CellData = map_data.cells.get(id, null)
+		if cell == null or cell.polygon.size() < 2:
+			continue
+		var rect := _polygon_bounds(cell.polygon)
+		if cell.domain == CellData.DOMAIN_LAND:
+			for water_id in _coastal_grid_query(water_grid, rect):
+				_try_coastal_link(cell, map_data.cells[water_id])
+		else:
+			for land_id in _coastal_grid_query(land_grid, rect):
+				_try_coastal_link(map_data.cells[land_id], cell)
+
+
+func _try_coastal_link(land_cell: CellData, water_cell: CellData) -> void:
+	if _polygons_touch(land_cell.polygon, water_cell.polygon, coastal_epsilon):
+		if water_cell.id not in land_cell.coastal_neighbor_ids:
+			land_cell.coastal_neighbor_ids.append(water_cell.id)
+		if land_cell.id not in water_cell.coastal_neighbor_ids:
+			water_cell.coastal_neighbor_ids.append(land_cell.id)
+		land_cell.is_coastal = true
+		water_cell.is_coastal = true
+
+
+func _cell_ids_for_sites(sites_list: Array) -> Array:
+	var out: Array = []
+	for s in sites_list:
+		if site_to_cell_id.has(s):
+			out.append(site_to_cell_id[s])
+	return out
+
+
+func _coastal_grid_insert(grid: Dictionary, cells_map: Dictionary, cell: CellData) -> void:
+	# idempotentność: bez tego duplikat w kubełku przetrwałby remove (erase zdejmuje
+	# tylko pierwsze wystąpienie) i generował stale linki
+	if cells_map.has(cell.id):
+		_coastal_grid_remove(grid, cells_map, cell.id)
+
+	var rect := _polygon_bounds(cell.polygon).grow(coastal_epsilon)
+	var bs := coastal_grid_size
+	var keys: Array = []
+	var x0 := floori(rect.position.x / bs)
+	var y0 := floori(rect.position.y / bs)
+	var x1 := floori(rect.end.x / bs)
+	var y1 := floori(rect.end.y / bs)
+	for gy in range(y0, y1 + 1):
+		for gx in range(x0, x1 + 1):
+			var key := Vector2i(gx, gy)
+			if not grid.has(key):
+				grid[key] = []
+			grid[key].append(cell.id)
+			keys.append(key)
+	cells_map[cell.id] = keys
+
+
+func _coastal_grid_remove(grid: Dictionary, cells_map: Dictionary, cell_id: int) -> void:
+	var keys: Array = cells_map.get(cell_id, [])
+	for k in keys:
+		if grid.has(k):
+			grid[k].erase(cell_id)
+			if (grid[k] as Array).is_empty():
+				grid.erase(k)
+	cells_map.erase(cell_id)
+
+
+func _coastal_grid_query(grid: Dictionary, rect: Rect2) -> Array:
+	var grown := rect.grow(coastal_epsilon)
+	var bs := coastal_grid_size
+	var x0 := floori(grown.position.x / bs)
+	var y0 := floori(grown.position.y / bs)
+	var x1 := floori(grown.end.x / bs)
+	var y1 := floori(grown.end.y / bs)
+	var out: Array = []
+	var seen := {}
+	for gy in range(y0, y1 + 1):
+		for gx in range(x0, x1 + 1):
+			var key := Vector2i(gx, gy)
+			if not grid.has(key):
+				continue
+			for id in grid[key]:
+				if not seen.has(id):
+					seen[id] = true
+					out.append(id)
+	return out
 
 
 func _polygons_touch(poly_a: PackedVector2Array, poly_b: PackedVector2Array, eps: float) -> bool:
@@ -595,7 +789,9 @@ func save_map(path: String = save_path, file_name: String = save_name) -> void:
 	dir = DirAccess.open(dir_path)
 	path = dir.get_current_dir() + "/"
 	
-	var ok := MapSerializer.save_to_json(path + Global.map_file_name, map_data)
+	var t_save := Time.get_ticks_msec()
+	var ok := MapSerializer.save_to_binary(path + Global.map_bin_file, map_data)
+	var save_ms := Time.get_ticks_msec() - t_save
 	
 	if use_land_mask:
 		var image_file = FileAccess.open(path + Global.land_mask_file, FileAccess.WRITE)
@@ -614,12 +810,17 @@ func save_map(path: String = save_path, file_name: String = save_name) -> void:
 		"save_name": save_name,
 		"use_land_mask": use_land_mask,
 		"use_border_mask": use_border_mask,
-		"map_render_scale": map_render_scale
+		"map_render_scale": map_render_scale,
+		"effective_width": effective_width,
+		"effective_height": effective_height
 	}
 	settings_file.store_string(JSON.stringify(settings_dict, "\t"))
 	settings_file.close()
 	
-	print("Save map: ", ok, " | ", path)
+	var bin_size := 0
+	if ok:
+		bin_size = FileAccess.get_file_as_bytes(path + Global.map_bin_file).size()
+	print("Save map: ", ok, " | ", path, " | bin=", bin_size, "B in ", save_ms, "ms")
 
 
 func load_map(path: String = save_path, _file_name: String = save_name) -> void:
@@ -651,8 +852,16 @@ func load_map(path: String = save_path, _file_name: String = save_name) -> void:
 	land_mask_processor = null
 	border_mask_processor = null
 	
-	effective_width = int(map_width * map_render_scale)
-	effective_height = int(map_height * map_render_scale)
+	var implied_eff_w := int(map_width * map_render_scale)
+	var implied_eff_h := int(map_height * map_render_scale)
+	# Poligony w zapisie żyją w przestrzeni EFECTIVE z momentu zapisu — przy rozjazdzie
+	# z obecnymi ustawieniami zaufanie ma zapis (inaczej maski/geometria by się rozjeżdżały).
+	effective_width = int(json_file.get("effective_width", implied_eff_w))
+	effective_height = int(json_file.get("effective_height", implied_eff_h))
+	if effective_width != implied_eff_w or effective_height != implied_eff_h:
+		push_warning("Map.load_map: zapis ma effective %dx%d, a obecne ustawienia dają %dx%d "
+			% [effective_width, effective_height, implied_eff_w, implied_eff_h]
+			+ "— używam wymiarów ZAPISU (polygonie nie zostaną rozjeżdżone).")
 	bounds = Rect2(0, 0, effective_width, effective_height)
 	
 	if use_land_mask:
@@ -691,8 +900,10 @@ func load_map(path: String = save_path, _file_name: String = save_name) -> void:
 				)
 				print("Border mask loaded: ", ok, " | points=", border_mask_processor.border_points.size())
 	
-	var loaded := MapSerializer.load_from_json(dir.get_current_dir() + "/" + Global.map_file_name)
+	var bin_path := dir.get_current_dir() + "/" + Global.map_bin_file
+	var loaded := MapSerializer.load_from_binary(bin_path)
 	if loaded == null:
+		push_error("Brak lub uszkodzony plik binarny mapy: " + bin_path)
 		return
 	
 	map_data = loaded
@@ -746,23 +957,38 @@ func add_point_at(pos: Vector2) -> void:
 
 	var start := Time.get_ticks_msec()
 	var ok := target_manager.add_point(pos)
+	var t_manager := Time.get_ticks_msec() - start
+	var t_sync := 0
+	var t_coastal := 0
+	var t_chunks := 0
 	if ok:
 		var cell := map_data.create_cell(pos)
 		cell.domain = domain
 		cell.component_id = component_id
-		
+
+		var t := Time.get_ticks_msec()
 		_rebuild_lookup_caches()
-		_rebuild_component_cached_cells()
-		_sync_geometry_from_component_managers()
-		_rebuild_coastal_adjacency()
-		
+		_sync_cells_for_sites(target_manager, target_manager.last_affected_sites)
+		t_sync = Time.get_ticks_msec() - t
+
+		t = Time.get_ticks_msec()
+		var affected_ids := _cell_ids_for_sites(target_manager.last_affected_sites)
+		affected_ids.append(cell.id)
+		_update_coastal_for_cells(affected_ids)
+		t_coastal = Time.get_ticks_msec() - t
+
+		t = Time.get_ticks_msec()
 		var affected := _get_affected_cell_ids_from_cached(pos)
 		if cell.id not in affected:
 			affected.append(cell.id)
 		chunk_render_layer.refresh_chunks_for_cells(affected)
-	
+		_queue_water_redraw()
+		t_chunks = Time.get_ticks_msec() - t
+
 	var elapsed := Time.get_ticks_msec() - start
 	print("Add point: ", ok, " | ", elapsed, " ms | cells=", map_data.cells.size())
+	if profile_ops:
+		print("  [split] manager=%dms sync=%dms coastal=%dms chunks=%dms" % [t_manager, t_sync, t_coastal, t_chunks])
 	update_layers()
 
 
@@ -781,26 +1007,41 @@ func remove_point_at(pos: Vector2) -> void:
 	
 	var affected: Array = cell.neighbor_ids.duplicate()
 	affected.append_array(cell.coastal_neighbor_ids)
-	
+	var victim_coastal: Array = cell.coastal_neighbor_ids.duplicate()
+
 	var target_manager: DynamicDelaunayVoronoi = component_managers[key]
-	
+
 	var start := Time.get_ticks_msec()
 	var ok := target_manager.remove_point(cell.site)
+	var t_manager := Time.get_ticks_msec() - start
+	var t_sync := 0
+	var t_coastal := 0
+	var t_chunks := 0
 	if ok:
 		map_data.remove_cell(nearest_cell_id)
 		if selected_cell_id == nearest_cell_id:
 			selected_cell_id = -1
-		
+
+		var t := Time.get_ticks_msec()
 		_rebuild_lookup_caches()
-		_rebuild_component_cached_cells()
-		_sync_geometry_from_component_managers()
-		_rebuild_coastal_adjacency()
-		
+		_sync_cells_for_sites(target_manager, target_manager.last_affected_sites)
+		t_sync = Time.get_ticks_msec() - t
+
+		t = Time.get_ticks_msec()
+		var rm_touched_ids := _cell_ids_for_sites(target_manager.last_affected_sites)
+		_update_coastal_for_cells(rm_touched_ids, {nearest_cell_id: victim_coastal})
+		t_coastal = Time.get_ticks_msec() - t
+
+		t = Time.get_ticks_msec()
 		chunk_render_layer.remove_cell(nearest_cell_id)
 		chunk_render_layer.refresh_chunks_for_cells(affected)
-	
+		_queue_water_redraw()
+		t_chunks = Time.get_ticks_msec() - t
+
 	var elapsed := Time.get_ticks_msec() - start
 	print("Remove point: ", ok, " | ", elapsed, " ms | cells=", map_data.cells.size())
+	if profile_ops:
+		print("  [split] manager=%dms sync=%dms coastal=%dms chunks=%dms" % [t_manager, t_sync, t_coastal, t_chunks])
 	update_layers()
 
 
@@ -833,10 +1074,17 @@ func move_nearest_point_to(pos: Vector2) -> void:
 
 	var start := Time.get_ticks_msec()
 	var ok := false
+	var managers_to_sync: Array = []
+	var t_manager := 0
+	var t_sync := 0
+	var t_coastal := 0
+	var t_chunks := 0
 
 	if old_key == new_key:
 		var target_manager: DynamicDelaunayVoronoi = component_managers[old_key]
 		ok = target_manager.move_point(old_site, pos)
+		if ok:
+			managers_to_sync.append(target_manager)
 	else:
 		var old_manager: DynamicDelaunayVoronoi = component_managers[old_key]
 
@@ -852,27 +1100,46 @@ func move_nearest_point_to(pos: Vector2) -> void:
 
 		var removed := old_manager.remove_point(old_site)
 		if removed:
+			managers_to_sync.append(old_manager)
 			ok = new_manager.add_point(pos)
+			if ok:
+				managers_to_sync.append(new_manager)
+
+	t_manager = Time.get_ticks_msec() - start
 
 	if ok:
 		cell.site = pos
 		cell.domain = new_domain
 		cell.component_id = new_component_id
-		
+
+		var t := Time.get_ticks_msec()
 		_rebuild_lookup_caches()
-		_rebuild_component_cached_cells()
-		_sync_geometry_from_component_managers()
-		_rebuild_coastal_adjacency()
-		
+		for m in managers_to_sync:
+			_sync_cells_for_sites(m, m.last_affected_sites)
+		t_sync = Time.get_ticks_msec() - t
+
+		t = Time.get_ticks_msec()
+		var mv_touched_ids := []
+		for m in managers_to_sync:
+			mv_touched_ids.append_array(_cell_ids_for_sites(m.last_affected_sites))
+		mv_touched_ids.append(nearest_cell_id)
+		_update_coastal_for_cells(mv_touched_ids)
+		t_coastal = Time.get_ticks_msec() - t
+
+		t = Time.get_ticks_msec()
 		var affected := _get_affected_cell_ids_from_cached(pos)
 		if nearest_cell_id not in affected:
 			affected.append(nearest_cell_id)
 		chunk_render_layer.refresh_chunks_for_cells(affected)
-		
+		_queue_water_redraw()
+		t_chunks = Time.get_ticks_msec() - t
+
 		selected_cell_id = nearest_cell_id
-	
+
 	var elapsed := Time.get_ticks_msec() - start
 	print("Move point: ", ok, " | ", elapsed, " ms | cells=", map_data.cells.size())
+	if profile_ops:
+		print("  [split] manager=%dms sync=%dms coastal=%dms chunks=%dms" % [t_manager, t_sync, t_coastal, t_chunks])
 	update_layers()
 
 
@@ -926,15 +1193,19 @@ func set_cell_domain(cell_id: int, new_domain: int) -> bool:
 	cell.component_id = new_component_id
 
 	_rebuild_lookup_caches()
-	_rebuild_component_cached_cells()
-	_sync_geometry_from_component_managers()
-	_rebuild_coastal_adjacency()
-	
+	_sync_cells_for_sites(old_manager, old_manager.last_affected_sites)
+	_sync_cells_for_sites(new_manager, new_manager.last_affected_sites)
+	var domain_touched_ids := _cell_ids_for_sites(old_manager.last_affected_sites)
+	domain_touched_ids.append_array(_cell_ids_for_sites(new_manager.last_affected_sites))
+	domain_touched_ids.append(cell_id)
+	_update_coastal_for_cells(domain_touched_ids)
+
 	var affected: Array = [cell_id]
 	if map_data.cells.has(cell_id):
 		affected.append_array(map_data.cells[cell_id].neighbor_ids)
 		affected.append_array(map_data.cells[cell_id].coastal_neighbor_ids)
 	chunk_render_layer.refresh_chunks_for_cells(affected)
+	_queue_water_redraw()
 	update_layers()
 	
 	return true
@@ -959,6 +1230,7 @@ func clear_all_points() -> void:
 	selected_region_id = -1
 	
 	chunk_render_layer.rebuild_all()
+	_queue_water_redraw()
 	update_layers()
 
 func _get_affected_cell_ids_from_cached(site: Vector2) -> Array:
@@ -982,18 +1254,20 @@ func _get_affected_cell_ids_from_cached(site: Vector2) -> Array:
 # =========================================================
 
 func find_nearest_cell_id(pos: Vector2, max_dist: float = INF) -> int:
-	var best_id := -1
-	var best_d := INF
-	var max_d_sqr := max_dist * max_dist
+	if max_dist == INF:
+		# rzadka ścieżka bez ograniczenia zasięgu — pełny skan
+		var best_id := -1
+		var best_d := INF
+		for cell_id in map_data.cells.keys():
+			var cell: CellData = map_data.cells[cell_id]
+			var d := cell.site.distance_squared_to(pos)
+			if d < best_d:
+				best_d = d
+				best_id = cell_id
+		return best_id
 
-	for cell_id in map_data.cells.keys():
-		var cell: CellData = map_data.cells[cell_id]
-		var d := cell.site.distance_squared_to(pos)
-		if d < best_d and d <= max_d_sqr:
-			best_d = d
-			best_id = cell_id
-
-	return best_id
+	var found = site_index.find_nearest_within(pos, max_dist)
+	return -1 if found == null else int(found)
 
 
 func find_cell_id_at_position(pos: Vector2) -> int:
@@ -1188,7 +1462,20 @@ func _apply_chunk_draw_mode() -> void:
 	if chunk_render_layer == null:
 		return
 	
+	# W trybie LAND_OVER_WATER wodę rysuje warstwa globalna pod chunkami
+	# (WaterBackLayer), a chunki malują wyłącznie ląd — dzięki temu kolejność
+	# woda->ląd obowiązuje też między chunkami, nie tylko wewnątrz _draw().
+	var water_under: bool = chunk_draw_mode == MapChunk.DrawMode.LAND_OVER_WATER
+	if water_back_layer:
+		water_back_layer.visible = water_under
+		water_back_layer.queue_redraw()
+	
 	for key in chunk_render_layer.chunks.keys():
 		var chunk: MapChunk = chunk_render_layer.chunks[key]
-		chunk.draw_mode = chunk_draw_mode
+		chunk.draw_mode = MapChunk.DrawMode.LAND_ONLY if water_under else chunk_draw_mode
 		chunk.refresh()
+
+
+func _queue_water_redraw() -> void:
+	if water_back_layer:
+		water_back_layer.queue_redraw()
