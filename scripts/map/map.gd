@@ -511,6 +511,48 @@ func rebuild_geometry_from_map_data() -> void:
 	update_layers()
 
 
+## Grupuje niepokryte punkty (entries: [Vector2, komponent]) w klastry o danym
+## promieniu; zwraca listę {comp, pts, centroid}.
+func _cluster_entries(entries: Array, radius: float) -> Array:
+	var clusters: Array = []
+	for e in entries:
+		var p: Vector2 = e[0]
+		var comp: int = e[1]
+		var found := false
+		for cl in clusters:
+			if cl.comp == comp and p.distance_to(cl.centroid) < radius:
+				cl.pts.append(p)
+				var c := Vector2.ZERO
+				for qv: Vector2 in cl.pts:
+					c += qv
+				cl.centroid = c / cl.pts.size()
+				found = true
+				break
+		if not found:
+			clusters.append({comp = comp, pts = [p], centroid = p})
+	return clusters
+
+
+## Jak _cluster_entries, ale dla gołych punktów (bez komponentu).
+func _cluster_points(points: Array, radius: float) -> Array:
+	var clusters: Array = []
+	for p in points:
+		var pv: Vector2 = p
+		var found := false
+		for cl in clusters:
+			if pv.distance_to(cl.centroid) < radius:
+				cl.pts.append(pv)
+				var c := Vector2.ZERO
+				for qv: Vector2 in cl.pts:
+					c += qv
+				cl.centroid = c / cl.pts.size()
+				found = true
+				break
+		if not found:
+			clusters.append({pts = [pv], centroid = pv})
+	return clusters
+
+
 func _point_in_any_land_polygon(p: Vector2) -> bool:
 	for lp in land_mask_processor.land_polygons:
 		if lp.size() >= 3 and Geometry2D.is_point_in_polygon(p, lp):
@@ -533,9 +575,13 @@ func _patch_land_slivers(max_passes: int = 3) -> int:
 	var total := 0
 	var failed: Array[Vector2] = []
 	const STRIDE := 16.0
-	const MIN_SPACING := 12.0
 	const MAX_TOTAL := 200
 	const G := 64.0
+	# Promień klastra ~ typowy rozmiar lokalnej komórki: każda szczelina dostaje
+	# JEDEN site wielkości sąsiednich komórek (a nie siatkę identycznych
+	# kwadracików, jak przy stałym małym odstępie).
+	var area_per_site: float = bounds.get_area() / max(float(map_data.cells.size()), 1.0)
+	var cluster_radius: float = max(sqrt(area_per_site) * 0.9, 24.0)
 
 	for _pass in range(max_passes):
 		if total >= MAX_TOTAL:
@@ -586,29 +632,39 @@ func _patch_land_slivers(max_passes: int = 3) -> int:
 		if raw.is_empty():
 			break
 
-		# Dedupe (min. odstęp) + tworzenie komórek lądu w szczelinach.
+		# Klastrujemy niepokryte punkty: JEDEN site na szczelinę (centroid
+		# klastra; jeśli wypada poza poligon lądu — pierwszy punkt klastra
+		# wewnątrz niego). Site wielkości lokalnych komórek wygląda naturalnie.
 		var added: Array[Vector2] = []
 		var added_comp: Array[int] = []
-		for entry in raw:
-			if total + added.size() >= MAX_TOTAL:
+		for cl in _cluster_entries(raw, cluster_radius):
+			if total >= MAX_TOTAL:
 				break
-			var p: Vector2 = entry[0]
-			if site_index.has_point_within(p, 1.0):
+			var lp: PackedVector2Array = land_mask_processor.land_polygons[cl.comp]
+			var site := Vector2.ZERO
+			var have_site := false
+			if Geometry2D.is_point_in_polygon(cl.centroid, lp):
+				site = cl.centroid
+				have_site = true
+			else:
+				for qv: Vector2 in cl.pts:
+					if Geometry2D.is_point_in_polygon(qv, lp):
+						site = qv
+						have_site = true
+						break
+			if not have_site:
+				continue
+			if site_index.has_point_within(site, 1.0):
 				continue
 			var too_close := false
-			for q in added:
-				if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
+			for q in failed:
+				if site.distance_squared_to(q) < cluster_radius * cluster_radius:
 					too_close = true
 					break
-			if not too_close:
-				for q in failed:
-					if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
-						too_close = true
-						break
 			if too_close:
 				continue
-			added.append(p)
-			added_comp.append(entry[1])
+			added.append(site)
+			added_comp.append(cl.comp)
 
 		if added.is_empty():
 			break
@@ -689,31 +745,29 @@ func _patch_land_slivers(max_passes: int = 3) -> int:
 							break
 					if not covered:
 						wraw.append(p)
-				wx += STRIDE
-			wy += STRIDE
+				wx += wstride
+			wy += wstride
 
 		if wraw.is_empty():
 			continue   # spróbuj drobniejszej siatki (ostatni pass zakończy pętlę)
 
+		# Jeden site (centroid klastra) na dziurę — komórka wypełnia całą
+		# dziurę organicznie, rozmiarem zgodna z sąsiedztwem.
 		var wadded: Array[Vector2] = []
-		for p in wraw:
+		for cl in _cluster_points(wraw, cluster_radius):
 			if total >= MAX_TOTAL:
 				break
-			if site_index.has_point_within(p, 1.0):
+			var site: Vector2 = cl.centroid
+			if site_index.has_point_within(site, 1.0):
 				continue
 			var too_close := false
-			for q in wadded:
-				if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
+			for q in failed:
+				if site.distance_squared_to(q) < cluster_radius * cluster_radius:
 					too_close = true
 					break
-			if not too_close:
-				for q in failed:
-					if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
-						too_close = true
-						break
 			if too_close:
 				continue
-			wadded.append(p)
+			wadded.append(site)
 
 		if wadded.is_empty():
 			continue
