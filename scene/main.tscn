@@ -12,6 +12,7 @@
 [ext_resource type="Script" uid="uid://442mlexncrsr" path="res://scene/ui/create_new_region_container.gd" id="10_k65ib"]
 [ext_resource type="PackedScene" uid="uid://bkqgrs5kebyg0" path="res://scene/ui/Boxes/input_data_box.tscn" id="10_tqoya"]
 [ext_resource type="PackedScene" uid="uid://cclndcrx8ln4y" path="res://scene/ui/Boxes/input_number_data_box.tscn" id="12_wscrc"]
+[ext_resource type="Script" uid="uid://b4f0kxa2a8rvi" path="res://scripts/map/display_modes/display_mode_manager.gd" id="13_dmm"]
 
 [sub_resource type="LabelSettings" id="LabelSettings_52qdk"]
 font_size = 20
@@ -30,6 +31,9 @@ land_mask_path = "uid://dqksbbqed0hku"
 black_is_land = false
 use_border_mask = true
 generate_on_land_only = false
+
+[node name="DisplayModeManager" type="Node" parent="Map" unique_id=731945286]
+script = ExtResource("13_dmm")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=1914990198]
 script = ExtResource("2_v0l8b")

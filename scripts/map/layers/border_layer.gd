@@ -24,7 +24,11 @@ func _draw() -> void:
 		if cell.domain == CellData.DOMAIN_WATER:
 			border_color = Color(0.4, 0.7, 1.0, 0.5)
 		elif cell.region_id != -1:
-			border_color = main_ref.color_from_id(cell.region_id * 1000, 1.0)
+			var region = main_ref.map_data.regions.get(cell.region_id)
+			if region != null and region.color != Color.BLACK:
+				border_color = region.color
+			else:
+				border_color = main_ref.color_from_id(cell.region_id * 1000, 1.0)
 		
 		for i in range(poly.size()):
 			var a := poly[i]

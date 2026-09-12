@@ -28,6 +28,13 @@ signal initialized
 
 @export var draw_land_mask_outline := true
 @export var draw_water_cell_borders := false
+## Granice regionów poziomu 1 (warstwa RegionDisplayLayer; tryb Administracyjny).
+@export var draw_region_boundaries := false
+## Filtr poziomu administracyjnego dla chunków: 0 = wyłączony (rysuj wszystko),
+## N > 0 = rysowane są WYŁĄCZNIE komórki należące do regionów poziomu N
+## (komórki lądowe bez regionu lub z regionu innego poziomu są ukrywane;
+## woda pozostaje widoczna jako tło mapy).
+@export var visible_admin_level := 0
 
 @export var point_radius := 3.0
 @export var remove_radius := 20.0
@@ -91,6 +98,7 @@ var chunk_render_layer: ChunkRenderLayer
 var water_back_layer: WaterBackLayer
 var highlight_layer: HighlightLayer
 var border_layer: BorderLayer
+var region_display_layer: RegionDisplayLayer
 var mask_layer: MaskLayer
 var debug_layer: DebugLayer
 
@@ -215,6 +223,13 @@ func setup_layers() -> void:
 	border_layer.name = "BorderLayer"
 	container.add_child(border_layer)
 	border_layer.set_main(self)
+
+	# 3.5 granice regionów poziomu 1 — nad konturami komórek, pod maską i debugiem
+	region_display_layer = RegionDisplayLayer.new()
+	region_display_layer.name = "RegionDisplayLayer"
+	container.add_child(region_display_layer)
+	region_display_layer.set_main(self)
+	region_display_layer.visible = draw_region_boundaries
 	
 	# 4. kontur maski PNG
 	mask_layer = MaskLayer.new()
@@ -236,6 +251,9 @@ func update_layers() -> void:
 		mask_layer.queue_redraw()
 	if debug_layer:
 		debug_layer.queue_redraw()
+	if region_display_layer:
+		region_display_layer.visible = draw_region_boundaries
+		region_display_layer.queue_redraw()
 
 
 # =========================================================
@@ -784,9 +802,16 @@ func _point_segment_distance_squared(p: Vector2, a: Vector2, b: Vector2) -> floa
 # =========================================================
 
 func save_map(path: String = save_path, file_name: String = save_name) -> void:
-	var dir_path = path + file_name
-	var dir = DirAccess.open(path).make_dir(file_name)
-	dir = DirAccess.open(dir_path)
+	var dir_path: String = path + file_name
+	# Katalog mapy (i ewentualne rodzice) muszą istnieć przed zapisem —
+	# DirAccess.open() na nieistniejącej ścieżce zwraca null (crash przy
+	# pierwszym zapisie na świeżym klonie repo).
+	if not DirAccess.dir_exists_absolute(dir_path):
+		DirAccess.make_dir_recursive_absolute(dir_path)
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		push_error("save_map: nie można utworzyć katalogu mapy: " + dir_path)
+		return
 	path = dir.get_current_dir() + "/"
 	
 	var t_save := Time.get_ticks_msec()
@@ -1280,13 +1305,13 @@ func find_cell_id_at_position(pos: Vector2) -> int:
 # REGIONS
 # =========================================================
 
-func create_region_for_selected_cell() -> void:
-	if selected_cell_id == -1:
+func create_region_for_selected_cell(cells: Array[int], r_name: String, level: int, parent: int, red: float, green: float, blue: float) -> void:
+	if cells.is_empty():
 		return
 
-	var region := map_data.create_region("Region %d" % map_data.next_region_id)
-	map_data.assign_cell_to_region(selected_cell_id, region.id)
-	selected_region_id = region.id
+	var region := map_data.create_region(r_name, level, parent, red, green, blue)
+	for cell in cells:
+		map_data.assign_cell_to_region(cell, region.id)
 	update_layers()
 
 
@@ -1372,8 +1397,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_O:
 				draw_land_mask_outline = !draw_land_mask_outline
 				update_layers()
-			KEY_E:
-				create_region_for_selected_cell()
+			#KEY_E:
+				#create_region_for_selected_cell()
 			KEY_Q:
 				select_next_region()
 			KEY_A:

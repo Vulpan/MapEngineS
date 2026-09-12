@@ -15,16 +15,17 @@ func _input(event: InputEvent) -> void:
 	if get_state() != Player.State.PAUSE:
 		if event is InputEventMouseButton and event.pressed:
 			var mouse_pos := get_local_mouse_position()
-
 			if event.button_index == MOUSE_BUTTON_LEFT:
 				if current_state == State.REGION_EDITING:
 					if Input.is_key_pressed(KEY_SHIFT):
 						var id = map.find_cell_id_at_position(mouse_pos)
-						selected_cell_ids.append(id)
+						if not selected_cell_ids.has(id):
+							selected_cell_ids.append(id)
 					else:
-						selected_cell_ids.clear()
 						var id = map.find_cell_id_at_position(mouse_pos)
-						selected_cell_ids.append(id)
+						if id != -1:
+							selected_cell_ids.clear()
+							selected_cell_ids.append(id)
 			
 			if event.button_index == MOUSE_BUTTON_RIGHT:
 				var id = map.find_cell_id_at_position(mouse_pos)

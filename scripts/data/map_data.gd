@@ -48,8 +48,21 @@ func get_cell_ids() -> Array:
 	return cells.keys()
 
 
-func create_region(name: String = "") -> RegionData:
-	var region := RegionData.new(next_region_id, name)
+#func create_region(name: String = "") -> RegionData:
+	#var region := RegionData.new(next_region_id, name)
+	#regions[region.id] = region
+	#next_region_id += 1
+	#return region
+
+func create_region(
+	name: String = "", 
+	level: int = -1, 
+	parent: int = -1, 
+	red: float = 0.0, 
+	green: float = 0.0, 
+	blue: float = 0.0
+	) -> RegionData:
+	var region := RegionData.new(next_region_id, name, level, parent, red, green, blue)
 	regions[region.id] = region
 	next_region_id += 1
 	return region
@@ -156,6 +169,11 @@ func to_binary_payload() -> Dictionary:
 
 	var reg_ids := PackedInt32Array()
 	var reg_names := PackedStringArray()
+	var reg_levels := PackedInt32Array()
+	var reg_parents := PackedInt32Array()
+	var reg_red := PackedFloat32Array()
+	var reg_green := PackedFloat32Array()
+	var reg_blue := PackedFloat32Array()
 	var reg_flat := PackedInt32Array()
 	var reg_off := PackedInt32Array()
 	var reg_meta: Array = []
@@ -163,6 +181,11 @@ func to_binary_payload() -> Dictionary:
 		var r: RegionData = regions[rid]
 		reg_ids.append(rid)
 		reg_names.append(r.name)
+		reg_levels.append(r.level)
+		reg_parents.append(r.parent)
+		reg_red.append(r.color.r)
+		reg_green.append(r.color.g)
+		reg_blue.append(r.color.b)
 		reg_off.append(reg_flat.size())
 		for cid in r.cell_ids:
 			reg_flat.append(cid)
@@ -170,7 +193,7 @@ func to_binary_payload() -> Dictionary:
 	reg_off.append(reg_flat.size())
 
 	return {
-		"version": 2,
+		"version": 1,
 		"bounds": bounds,
 		"next_cell_id": next_cell_id,
 		"next_region_id": next_region_id,
@@ -190,6 +213,11 @@ func to_binary_payload() -> Dictionary:
 		"meta_arr": meta_arr,
 		"reg_ids": reg_ids,
 		"reg_names": reg_names,
+		"reg_levels": reg_levels,
+		"reg_parents": reg_parents,
+		"reg_red": reg_red,
+		"reg_green": reg_green,
+		"reg_blue": reg_blue,
 		"reg_flat": reg_flat,
 		"reg_off": reg_off,
 		"reg_meta": reg_meta,
@@ -262,11 +290,24 @@ func from_binary_payload(d: Dictionary) -> void:
 
 	var reg_ids: PackedInt32Array = d.get("reg_ids", PackedInt32Array())
 	var reg_names: PackedStringArray = d.get("reg_names", PackedStringArray())
+	var reg_levels: PackedInt32Array = d.get("reg_levels", PackedInt32Array())
+	var reg_parents: PackedInt32Array = d.get("reg_parents", PackedInt32Array())
+	var reg_red: PackedFloat32Array = d.get("reg_red", PackedFloat32Array())
+	var reg_green: PackedFloat32Array = d.get("reg_green", PackedFloat32Array())
+	var reg_blue: PackedFloat32Array = d.get("reg_blue", PackedFloat32Array())
 	var reg_flat: PackedInt32Array = d.get("reg_flat", PackedInt32Array())
 	var reg_off: PackedInt32Array = d.get("reg_off", PackedInt32Array())
 	var reg_meta: Array = d.get("reg_meta", [])
 	for i in range(reg_ids.size()):
-		var r := RegionData.new(reg_ids[i], reg_names[i])
+		var r := RegionData.new(
+			reg_ids[i],
+			reg_names[i],
+			reg_levels[i],
+			reg_parents[i],
+			reg_red[i],
+			reg_green[i],
+			reg_blue[i]
+		)
 		var rs := reg_off[i]
 		var re := reg_off[i + 1]
 		for j in range(rs, re):
