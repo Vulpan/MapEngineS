@@ -299,14 +299,17 @@ func from_binary_payload(d: Dictionary) -> void:
 	var reg_off: PackedInt32Array = d.get("reg_off", PackedInt32Array())
 	var reg_meta: Array = d.get("reg_meta", [])
 	for i in range(reg_ids.size()):
+		# Guard'y: zapisy ze starszych wersji mogą nie mieć tablic poziomów
+		# ani kolorów — bez tego reg_red[i] itd. wyrzuca "Out of bounds"
+		# i CAŁE regiony znikają przy wczytaniu.
 		var r := RegionData.new(
 			reg_ids[i],
 			reg_names[i],
-			reg_levels[i],
-			reg_parents[i],
-			reg_red[i],
-			reg_green[i],
-			reg_blue[i]
+			reg_levels[i] if i < reg_levels.size() else -1,
+			reg_parents[i] if i < reg_parents.size() else -1,
+			reg_red[i] if i < reg_red.size() else 0.0,
+			reg_green[i] if i < reg_green.size() else 0.0,
+			reg_blue[i] if i < reg_blue.size() else 0.0
 		)
 		var rs := reg_off[i]
 		var re := reg_off[i + 1]

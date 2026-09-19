@@ -56,7 +56,12 @@ func _on_confirm_button_pressed() -> void:
 	
 	var reg_name = name_input_data_box.get_content()
 	var level = amd_level_input_number_data_box.get_content()
-	print(player.selected_cell_ids)
+	
+	#TODO podzielic na regiony de jure i de facto
+	#for cell_id in player.selected_cell_ids:
+		#var cell = map.map_data.get_cell(cell_id)
+		#cell.
+	
 	map.create_region_for_selected_cell(
 		player.selected_cell_ids,
 		reg_name,

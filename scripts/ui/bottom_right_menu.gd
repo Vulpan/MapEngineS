@@ -12,10 +12,12 @@ class_name BottomRightMenu
 
 
 @onready var create_new_region_container: CreateNewRegionContainer = $"../CreateNewRegionContainer"
+@onready var region_editing_buttons_box: VBoxContainer = $VBox/VBoxTop/RegionEditingButtonsBox
 
 
 func _ready() -> void:
 	player.state_changed.connect(_on_player_state_change)
+	region_editing_buttons_box.hide()
 
 
 func _process(_delta: float) -> void:
@@ -41,7 +43,14 @@ func _on_player_state_change() -> void:
 
 
 func _on_region_editing_button_pressed() -> void:
-	player.set_state(Player.State.REGION_EDITING)
+	var st = player.get_state()
+	if st == Player.State.REGION_EDITING:
+		player.set_state(Player.State.IDLE)
+		region_editing_buttons_box.hide()
+		player.selected_cell_ids.clear()
+	else:
+		player.set_state(Player.State.REGION_EDITING)
+		region_editing_buttons_box.show()
 
 
 func _on_create_first_level_region_button_pressed() -> void:

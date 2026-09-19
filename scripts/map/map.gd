@@ -35,6 +35,14 @@ signal initialized
 ## (komórki lądowe bez regionu lub z regionu innego poziomu są ukrywane;
 ## woda pozostaje widoczna jako tło mapy).
 @export var visible_admin_level := 0
+## Automatyczne łatanie "szczelin" lądu — fragmentów maski lądu, do których
+## nie dociera żadna komórka lądowa (cienkie cyple/przesmyki bez site'u lądu).
+## Bez tego takie miejsca renderują się jak woda, nie da się ich kliknąć
+## ani przypisać do regionu (wcięcia w trybie administracyjnym).
+@export var patch_land_slivers := true
+## Minimalne pole (px²) szczeliny lądu, która jest łataną (mniejsze są
+## niewidoczne i pomijane).
+@export var land_sliver_min_area := 150.0
 
 @export var point_radius := 3.0
 @export var remove_radius := 20.0
@@ -143,6 +151,8 @@ func initialize() -> void:
 
 	_generate_initial_cells(initial_points_count)
 	rebuild_geometry_from_map_data()
+	if patch_land_slivers:
+		_patch_land_slivers()
 	update_layers()
 	queue_redraw()
 	
@@ -499,6 +509,240 @@ func rebuild_geometry_from_map_data() -> void:
 	chunk_render_layer.rebuild_all()
 	_queue_water_redraw()
 	update_layers()
+
+
+func _point_in_any_land_polygon(p: Vector2) -> bool:
+	for lp in land_mask_processor.land_polygons:
+		if lp.size() >= 3 and Geometry2D.is_point_in_polygon(p, lp):
+			return true
+	return false
+
+
+## Łata "szczeliny" lądu: fragmenty maski lądu niepokryte przez ŻADNĄ komórkę
+## lądową (cienkie cyple/przesmyki, w które nie trafił żaden site lądu — site
+## wodny "wygrywa" Voronoi). Takie miejsca renderują się jak woda, nie da się
+## ich kliknąć ani przypisać do regionu — w trybie administracyjnym robią
+## charakterystyczne wcięcia w granicach regionów.
+## Detekcja: sampling maski lądu (co land_sliver_stride px) i sprawdzenie,
+## czy punkt pokrywa poligon którejś komórki LĄDOWEJ; dla niepokrytych
+## punktów dodajemy site'y lądu i przebudowujemy geometrię.
+## Zwraca liczbę dodanych komórek.
+func _patch_land_slivers(max_passes: int = 3) -> int:
+	if not use_land_mask or land_mask_processor == null:
+		return 0
+	var total := 0
+	var failed: Array[Vector2] = []
+	const STRIDE := 16.0
+	const MIN_SPACING := 12.0
+	const MAX_TOTAL := 200
+	const G := 64.0
+
+	for _pass in range(max_passes):
+		if total >= MAX_TOTAL:
+			push_warning("Land sliver patch: osiągnięto limit %d nowych komórek" % MAX_TOTAL)
+			break
+
+		# Indeks bbox poligonów komórek lądu (pokrycie sprawdzamy tylko wobec nich).
+		var grid := {}
+		for cell_id in map_data.cells.keys():
+			var cell: CellData = map_data.cells[cell_id]
+			if cell.domain != CellData.DOMAIN_LAND or cell.polygon.size() < 3:
+				continue
+			var r := Rect2(cell.polygon[0], Vector2())
+			for v in cell.polygon:
+				r = r.expand(v)
+			for gy in range(int(r.position.y / G), int(r.end.y / G) + 1):
+				for gx in range(int(r.position.x / G), int(r.end.x / G) + 1):
+					var k := Vector2i(gx, gy)
+					if not grid.has(k):
+						grid[k] = []
+					grid[k].append(cell_id)
+
+		# Sampling: punkty lądu, których nie pokrywa żadna komórka lądu.
+		# Weryfikacja wobec POLIGONÓW maski (nie tylko bitmapy sample_domain —
+		# na subpikselowych granicach bitmapa i poligon mogą się rozjechać,
+		# a site poza poligonem komponentu dostaje po clipie pusty poligon).
+		var raw: Array = []   # [punkt, komponent]
+		var y := STRIDE * 0.5
+		while y < bounds.size.y:
+			var x := STRIDE * 0.5
+			while x < bounds.size.x:
+				var p := Vector2(x, y)
+				if land_mask_processor.sample_domain(p) == CellData.DOMAIN_LAND:
+					var covered := false
+					for id in grid.get(Vector2i(int(x / G), int(y / G)), []):
+						if Geometry2D.is_point_in_polygon(p, map_data.cells[id].polygon):
+							covered = true
+							break
+					if not covered:
+						for i in range(land_mask_processor.land_polygons.size()):
+							var lp: PackedVector2Array = land_mask_processor.land_polygons[i]
+							if lp.size() >= 3 and Geometry2D.is_point_in_polygon(p, lp):
+								raw.append([p, i])
+								break
+				x += STRIDE
+			y += STRIDE
+
+		if raw.is_empty():
+			break
+
+		# Dedupe (min. odstęp) + tworzenie komórek lądu w szczelinach.
+		var added: Array[Vector2] = []
+		var added_comp: Array[int] = []
+		for entry in raw:
+			if total + added.size() >= MAX_TOTAL:
+				break
+			var p: Vector2 = entry[0]
+			if site_index.has_point_within(p, 1.0):
+				continue
+			var too_close := false
+			for q in added:
+				if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
+					too_close = true
+					break
+			if not too_close:
+				for q in failed:
+					if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
+						too_close = true
+						break
+			if too_close:
+				continue
+			added.append(p)
+			added_comp.append(entry[1])
+
+		if added.is_empty():
+			break
+
+		for idx in range(added.size()):
+			var new_cell := map_data.create_cell(added[idx])
+			new_cell.domain = CellData.DOMAIN_LAND
+			new_cell.component_id = added_comp[idx]
+			new_cell.is_land = true
+			new_cell.is_water = false
+			new_cell.meta["sliver_patch"] = true
+			total += 1
+
+		# Pełna przebudowa nadpisuje poligony i przebudowuje cache.
+		rebuild_geometry_from_map_data()
+
+		# Sprzątanie: łatki, których poligon i tak został wycięty (pusty),
+		# usuwamy — zostawiłyby martwe, nieklikalne komórki. Ich site'y
+		# trafiają na blokadę, żeby następny pass nie dodał ich ponownie.
+		var purge := 0
+		for cell_id in map_data.cells.keys().duplicate():
+			var c: CellData = map_data.cells[cell_id]
+			if c.meta.get("sliver_patch", false) and c.polygon.size() < 3:
+				failed.append(c.site)
+				map_data.remove_cell(cell_id)
+				purge += 1
+		if purge > 0:
+			total -= purge
+			rebuild_geometry_from_map_data()
+
+	# ── FAZA 2: dziury w teselacji po stronie Wody ──
+	# Komórki lądowe są przycinane do poligonu lądu; obszar maski-wody, do którego
+	# nie sięga żaden site wody, nie należy więc do ŻADNEJ komórki (nieklikalne
+	# "nic", dziura w renderze wody i wcięcia granic przy wybrzeżu — typowe
+	# w zapisach po edycjach). Dodajemy site'y wody w takich miejscach.
+	# Dwa przebiegi: siatka 16px (duże dziury), potem 8px (mikro-dziury przy
+	# wybrzeżu, którymi zajmujemy się dopiero po zbudowaniu grobli z passu 1).
+	var wstrides: Array[float] = [16.0, 8.0]
+	var wstride_idx := 0
+	while wstride_idx < wstrides.size():
+		var wstride: float = wstrides[wstride_idx]
+		wstride_idx += 1
+		if total >= MAX_TOTAL:
+			break
+
+		var grid_all := {}
+		for cell_id in map_data.cells.keys():
+			var cell: CellData = map_data.cells[cell_id]
+			if cell.polygon.size() < 3:
+				continue
+			var rb := Rect2(cell.polygon[0], Vector2())
+			for v in cell.polygon:
+				rb = rb.expand(v)
+			for gy in range(int(rb.position.y / G), int(rb.end.y / G) + 1):
+				for gx in range(int(rb.position.x / G), int(rb.end.x / G) + 1):
+					var kk := Vector2i(gx, gy)
+					if not grid_all.has(kk):
+						grid_all[kk] = []
+					grid_all[kk].append(cell_id)
+
+		var wraw: Array = []
+		var wy := wstride * 0.5
+		while wy < bounds.size.y:
+			var wx := wstride * 0.5
+			while wx < bounds.size.x:
+				var p := Vector2(wx, wy)
+				var dom := land_mask_processor.sample_domain(p)
+				# "Ziemia niczyja": punkt niepokryty przez ŻADNĄ komórkę. Site lądu
+				# ma sens tylko wewnątrz poligonu lądu (inaczej clip go wyzeruje);
+				# poza nim (rozjazd bitmapy i poligonów na wybrzeżu) dziurę łacze
+				# site'em WODY — woda nie jest przycinana, a ląd rysuje się i tak
+				# na wierzchu, więc takie wypełnienie jest zawsze bezpieczne.
+				if dom == CellData.DOMAIN_WATER or not _point_in_any_land_polygon(p):
+					var covered := false
+					for id in grid_all.get(Vector2i(int(wx / G), int(wy / G)), []):
+						if Geometry2D.is_point_in_polygon(p, map_data.cells[id].polygon):
+							covered = true
+							break
+					if not covered:
+						wraw.append(p)
+				wx += STRIDE
+			wy += STRIDE
+
+		if wraw.is_empty():
+			continue   # spróbuj drobniejszej siatki (ostatni pass zakończy pętlę)
+
+		var wadded: Array[Vector2] = []
+		for p in wraw:
+			if total >= MAX_TOTAL:
+				break
+			if site_index.has_point_within(p, 1.0):
+				continue
+			var too_close := false
+			for q in wadded:
+				if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
+					too_close = true
+					break
+			if not too_close:
+				for q in failed:
+					if p.distance_squared_to(q) < MIN_SPACING * MIN_SPACING:
+						too_close = true
+						break
+			if too_close:
+				continue
+			wadded.append(p)
+
+		if wadded.is_empty():
+			continue
+
+		for site in wadded:
+			var new_cell := map_data.create_cell(site)
+			new_cell.domain = CellData.DOMAIN_WATER
+			new_cell.component_id = land_mask_processor.find_component_for_point(site, CellData.DOMAIN_WATER)
+			new_cell.is_land = false
+			new_cell.is_water = true
+			new_cell.meta["sliver_patch"] = true
+			total += 1
+
+		rebuild_geometry_from_map_data()
+
+		var wpurge := 0
+		for cell_id in map_data.cells.keys().duplicate():
+			var c: CellData = map_data.cells[cell_id]
+			if c.meta.get("sliver_patch", false) and c.polygon.size() < 3:
+				failed.append(c.site)
+				map_data.remove_cell(cell_id)
+				wpurge += 1
+		if wpurge > 0:
+			total -= wpurge
+			rebuild_geometry_from_map_data()
+
+	if total > 0:
+		print("Land sliver patch: dodano komórek (ląd+woda): ", total)
+	return total
 
 
 func _rebuild_component_cached_cells() -> void:
@@ -939,6 +1183,8 @@ func load_map(path: String = save_path, _file_name: String = save_name) -> void:
 	
 	setup_layers()
 	rebuild_geometry_from_map_data()
+	if patch_land_slivers:
+		_patch_land_slivers()
 	
 	selected_cell_id = -1
 	selected_region_id = -1
