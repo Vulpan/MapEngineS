@@ -15,7 +15,7 @@ func get_id() -> StringName:
 
 
 func get_display_name() -> String:
-	return "Administracyjny"
+	return "Administracyjny - " + str(administrative_level)
 
 
 func get_order() -> int:
