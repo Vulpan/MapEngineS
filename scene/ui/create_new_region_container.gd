@@ -1,7 +1,6 @@
 class_name CreateNewRegionContainer
 extends CenterContainer
 
-
 var blocked_adm_level: bool = false
 var adm_level: int = 1
 
@@ -11,6 +10,8 @@ var adm_level: int = 1
 @onready var name_input_data_box: InputDataBox = $Panel/Margin/VBox/VBoxContainer/NameInputDataBox
 @onready var amd_level_input_number_data_box: InputNumberDataBox = $Panel/Margin/VBox/VBoxContainer/AmdLevelInputNumberDataBox
 @onready var color_picker_button: ColorPickerButton = $Panel/Margin/VBox/VBoxContainer/ColorBox/ColorPickerButton
+@onready var capital_option_item_box: InputOptionItemBox = $Panel/Margin/VBox/VBoxContainer/CapitalOptionItemBox
+
 
 func _ready() -> void:
 	hide()
@@ -19,6 +20,7 @@ func _ready() -> void:
 func show_container(_blocked: bool, _level: int) -> void:
 	blocked_adm_level = _blocked
 	adm_level = _level
+	capital_option_item_box.set_content(player.selected_cell_ids)
 	
 	if blocked_adm_level:
 		amd_level_input_number_data_box.set_blockade(blocked_adm_level)
@@ -56,7 +58,7 @@ func _on_confirm_button_pressed() -> void:
 	
 	var reg_name = name_input_data_box.get_content()
 	var level = amd_level_input_number_data_box.get_content()
-	
+	var cap_id = capital_option_item_box.get_selected_option()
 	#TODO podzielic na regiony de jure i de facto
 	#for cell_id in player.selected_cell_ids:
 		#var cell = map.map_data.get_cell(cell_id)
@@ -69,7 +71,8 @@ func _on_confirm_button_pressed() -> void:
 		-1, #TODO zrobić rodziców
 		color.r,
 		color.g,
-		color.b
+		color.b,
+		cap_id
 	)
 	
 	
@@ -77,3 +80,7 @@ func _on_confirm_button_pressed() -> void:
 	player.set_state(Player.State.REGION_EDITING)
 	hide()
 	_clear()
+
+
+func _on_capital_option_item_box_value_changed(id: int) -> void:
+	player.set_capital_id(id)

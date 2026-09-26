@@ -32,7 +32,27 @@ func _draw() -> void:
 		return
 
 	var selected_region: int = main_ref.selected_region_id
-	for rid in get_admin_region_ids(map_data):
+	var regions = get_admin_region_ids(map_data) 
+	var reg_cell_ids: Array[int] = []
+	for rid in regions:
+		var region: RegionData = map_data.regions[rid]
+		reg_cell_ids.append_array(region.cell_ids)
+	
+	for cell_id in main_ref.map_data.cells.keys():
+		if reg_cell_ids.has(cell_id):
+			continue
+		
+		var cell: CellData = main_ref.map_data.cells[cell_id]
+		var poly := cell.polygon
+		
+		if cell.domain != CellData.DOMAIN_LAND:
+			continue
+		if not main_ref.is_polygon_drawable(poly):
+			continue
+		
+		draw_colored_polygon(cell.polygon, Color(0.3, 0.3, 0.3, 0.3))
+	
+	for rid in regions:
 		var region: RegionData = map_data.regions[rid]
 		var edges := compute_boundary_edges(rid, map_data)
 		if edges.is_empty():

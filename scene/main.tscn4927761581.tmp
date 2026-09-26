@@ -33,7 +33,7 @@ black_is_land = false
 use_border_mask = true
 generate_on_land_only = false
 
-[node name="DisplayModeManager" type="Node" parent="Map" unique_id=731945286 groups=["DisplayModeManager"]]
+[node name="DisplayModeManager" type="Node" parent="Map" unique_id=731945286]
 script = ExtResource("13_dmm")
 
 [node name="Camera2D" type="Camera2D" parent="." unique_id=1914990198]
@@ -51,7 +51,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-mouse_filter = 2
 theme = ExtResource("3_0ha60")
 script = ExtResource("4_of57s")
 
@@ -139,7 +138,6 @@ layout_mode = 2
 [node name="VBoxTop" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=658907025]
 layout_mode = 2
 size_flags_horizontal = 8
-mouse_filter = 0
 
 [node name="RegionEditingButtonsBox" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu/VBox/VBoxTop" unique_id=287062655]
 layout_mode = 2
@@ -168,15 +166,6 @@ text = "RE"
 autowrap_mode = 2
 clip_text = true
 icon_alignment = 1
-
-[node name="AdmLevelSpinBox" type="SpinBox" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=493176180]
-custom_minimum_size = Vector2(32, 32)
-layout_mode = 2
-min_value = 1.0
-value = 1.0
-alignment = 1
-custom_arrow_step = 1.0
-custom_arrow_round = true
 
 [node name="VBoxBottom" type="VBoxContainer" parent="UI/MainUI/BottomRightMenu/VBox" unique_id=393714315]
 layout_mode = 2
@@ -238,8 +227,6 @@ title = "adm_level"
 
 [node name="CapitalOptionItemBox" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer" unique_id=1812874279 instance=ExtResource("14_hybxs")]
 layout_mode = 2
-box_name = &"call_cap_id"
-title = "call_cap_id"
 
 [node name="ColorBox" type="HBoxContainer" parent="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer" unique_id=1935735431]
 layout_mode = 2
@@ -271,13 +258,10 @@ text = "confirm"
 layout_mode = 2
 text = "cancel"
 
-[connection signal="initialized" from="Map" to="UI/MainUI" method="_on_map_initialized"]
 [connection signal="initialized" from="Map" to="UI/MainUI/RightMenu/RightMenuBox/BaseDataPanel" method="_on_map_initialized"]
 [connection signal="pressed" from="UI/MainUI/RightMenu/RightMenuBox/RightIconsMenu/BaseDataButton" to="UI/MainUI" method="_on_base_data_button_pressed"]
 [connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/VBoxTop/RegionEditingButtonsBox/CreateFirstLevelRegionButton" to="UI/MainUI/BottomRightMenu" method="_on_create_first_level_region_button_pressed"]
 [connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/VBoxTop/AddNewCellButton" to="UI/MainUI/BottomRightMenu" method="_on_add_new_cell_button_pressed"]
 [connection signal="pressed" from="UI/MainUI/BottomRightMenu/VBox/VBoxTop/RegionEditingButton" to="UI/MainUI/BottomRightMenu" method="_on_region_editing_button_pressed"]
-[connection signal="value_changed" from="UI/MainUI/BottomRightMenu/VBox/AdmLevelSpinBox" to="UI/MainUI/BottomRightMenu" method="_on_adm_level_spin_box_value_changed"]
-[connection signal="value_changed" from="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/VBoxContainer/CapitalOptionItemBox" to="UI/MainUI/CreateNewRegionContainer" method="_on_capital_option_item_box_value_changed"]
 [connection signal="pressed" from="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/BottomButtonsBox/ConfirmButton" to="UI/MainUI/CreateNewRegionContainer" method="_on_confirm_button_pressed"]
 [connection signal="pressed" from="UI/MainUI/CreateNewRegionContainer/Panel/Margin/VBox/BottomButtonsBox/CancelButton" to="UI/MainUI/CreateNewRegionContainer" method="_on_cancel_button_pressed"]

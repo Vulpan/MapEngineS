@@ -7,16 +7,18 @@ var name: String = ""
 var level: int = -1
 var parent: int
 var color: Color = Color.BLACK
+var capital_cell_id: int = -1
 var cell_ids: Array[int] = []
 var meta: Dictionary = {}
 
 
-func _init(_id: int = -1, _name: String = "", _level: int = -1, _parent: int = -1, _red: float = 0.0, _green: float = 0.0, _blue: float = 0.0) -> void:
+func _init(_id: int = -1, _name: String = "", _level: int = -1, _parent: int = -1, _red: float = 0.0, _green: float = 0.0, _blue: float = 0.0, _cap_cell_id: int = -1) -> void:
 	id = _id
 	name = _name
 	level = _level
 	parent = _parent
 	color = Color(_red, _green, _blue)
+	capital_cell_id = _cap_cell_id
 
 
 func to_dict() -> Dictionary:

@@ -3,6 +3,7 @@ class_name HighlightLayer
 
 var highlighted_cell_ids: Array[int] = []
 var highlight_color := Color(1.0, 1.0, 1.0, 0.3)
+var highlight_color_red := Color(1.0, 0.0, 0.0, 0.75)
 
 @onready var player: Player = get_tree().get_first_node_in_group("Player")
 
@@ -31,8 +32,12 @@ func _draw() -> void:
 	if main_ref == null:
 		return
 	
-	if player.current_state == Player.State.REGION_EDITING:
-		for cell_id in player.selected_cell_ids:
+	var state = player.get_state()
+	if state == Player.State.REGION_EDITING or state == Player.State.PAUSE:
+		var cells = []
+		cells.append_array(player.selected_cell_ids)
+		cells.append_array(highlighted_cell_ids)
+		for cell_id in cells:
 			if not main_ref.map_data.cells.has(cell_id):
 				continue
 			
@@ -41,7 +46,14 @@ func _draw() -> void:
 				continue
 			
 			draw_colored_polygon(cell.polygon, highlight_color)
-	
+		
+		if state == Player.State.PAUSE:
+			var capital_id = player.capital_id
+			if main_ref.map_data.cells.has(capital_id):
+				var cell: CellData = main_ref.map_data.cells[capital_id]
+				if cell.polygon.size() >= 3:
+					draw_colored_polygon(cell.polygon, highlight_color_red)
+		
 	else:
 		for cell_id in highlighted_cell_ids:
 			if not main_ref.map_data.cells.has(cell_id):

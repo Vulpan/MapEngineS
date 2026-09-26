@@ -27,3 +27,5 @@ polygon_editing;Edycja polygonów;Polygon editing
 enter_name;Wprowadź nazwę;Enter name
 adm_level;Poziom Administracji;Administration Level
 color;Kolor;Color
+add_new_cell;Dodaj nową komórkę; Add new cell
+call_cap_id;ID Stolicy;Capital ID

@@ -534,9 +534,9 @@ func _cluster_entries(entries: Array, radius: float) -> Array:
 
 
 ## Jak _cluster_entries, ale dla gołych punktów (bez komponentu).
-func _cluster_points(points: Array, radius: float) -> Array:
+func _cluster_points(_points: Array, radius: float) -> Array:
 	var clusters: Array = []
-	for p in points:
+	for p in _points:
 		var pv: Vector2 = p
 		var found := false
 		for cl in clusters:
@@ -1536,6 +1536,10 @@ func set_cell_domain(cell_id: int, new_domain: int) -> bool:
 	return true
 
 
+func get_cell_data(id: int) -> CellData:
+	return map_data.get_cell(id)
+
+
 func make_cell_land(cell_id: int) -> bool:
 	return set_cell_domain(cell_id, CellData.DOMAIN_LAND)
 
@@ -1605,11 +1609,11 @@ func find_cell_id_at_position(pos: Vector2) -> int:
 # REGIONS
 # =========================================================
 
-func create_region_for_selected_cell(cells: Array[int], r_name: String, level: int, parent: int, red: float, green: float, blue: float) -> void:
+func create_region_for_selected_cell(cells: Array[int], r_name: String, level: int, parent: int, red: float, green: float, blue: float, cap_id: int) -> void:
 	if cells.is_empty():
 		return
 
-	var region := map_data.create_region(r_name, level, parent, red, green, blue)
+	var region := map_data.create_region(r_name, level, parent, red, green, blue, cap_id)
 	for cell in cells:
 		map_data.assign_cell_to_region(cell, region.id)
 	update_layers()

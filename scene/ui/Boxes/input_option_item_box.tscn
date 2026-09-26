@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://1hhsukjh3wll"]
+
+[ext_resource type="Script" uid="uid://b22bpb6wuucn7" path="res://scripts/ui/boxes/input_option_item_box.gd" id="1_u7fy0"]
+
+[node name="InputOptionItemBox" type="HBoxContainer" unique_id=1812874279]
+script = ExtResource("1_u7fy0")
+
+[node name="TitleLabel" type="Label" parent="." unique_id=426272783]
+layout_mode = 2
+
+[node name="SeparatorLabel" type="Label" parent="." unique_id=1887436717]
+layout_mode = 2
+text = ": "
+
+[node name="OptionButton" type="OptionButton" parent="." unique_id=2005696653]
+layout_mode = 2
+alignment = 1
+allow_reselect = true
+
+[connection signal="item_selected" from="OptionButton" to="." method="_on_option_button_item_selected"]

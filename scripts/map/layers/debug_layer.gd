@@ -101,11 +101,10 @@ func _draw_selection() -> void:
 
 
 func _draw_debug_text() -> void:
-	var text := "Cells: %d | Regions: %d | Groups: %d | Selected cell: %d" % [
+	var text := "Cells: %d | Regions: %d | Groups: %d" % [
 		main_ref.map_data.cells.size(),
 		main_ref.map_data.regions.size(),
-		main_ref.component_managers.size(),
-		main_ref.selected_cell_id
+		main_ref.component_managers.size()
 	]
 	
 	draw_string(

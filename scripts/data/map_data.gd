@@ -60,9 +60,10 @@ func create_region(
 	parent: int = -1, 
 	red: float = 0.0, 
 	green: float = 0.0, 
-	blue: float = 0.0
+	blue: float = 0.0,
+	cap_id: int = -1
 	) -> RegionData:
-	var region := RegionData.new(next_region_id, name, level, parent, red, green, blue)
+	var region := RegionData.new(next_region_id, name, level, parent, red, green, blue, cap_id)
 	regions[region.id] = region
 	next_region_id += 1
 	return region
@@ -174,6 +175,7 @@ func to_binary_payload() -> Dictionary:
 	var reg_red := PackedFloat32Array()
 	var reg_green := PackedFloat32Array()
 	var reg_blue := PackedFloat32Array()
+	var reg_capital_ids := PackedInt32Array()
 	var reg_flat := PackedInt32Array()
 	var reg_off := PackedInt32Array()
 	var reg_meta: Array = []
@@ -186,6 +188,7 @@ func to_binary_payload() -> Dictionary:
 		reg_red.append(r.color.r)
 		reg_green.append(r.color.g)
 		reg_blue.append(r.color.b)
+		reg_capital_ids.append(r.capital_cell_id)
 		reg_off.append(reg_flat.size())
 		for cid in r.cell_ids:
 			reg_flat.append(cid)
@@ -218,6 +221,7 @@ func to_binary_payload() -> Dictionary:
 		"reg_red": reg_red,
 		"reg_green": reg_green,
 		"reg_blue": reg_blue,
+		"reg_cap": reg_capital_ids,
 		"reg_flat": reg_flat,
 		"reg_off": reg_off,
 		"reg_meta": reg_meta,
@@ -295,6 +299,7 @@ func from_binary_payload(d: Dictionary) -> void:
 	var reg_red: PackedFloat32Array = d.get("reg_red", PackedFloat32Array())
 	var reg_green: PackedFloat32Array = d.get("reg_green", PackedFloat32Array())
 	var reg_blue: PackedFloat32Array = d.get("reg_blue", PackedFloat32Array())
+	var reg_capital_ids: PackedInt32Array = d.get("reg_cap", PackedInt32Array())
 	var reg_flat: PackedInt32Array = d.get("reg_flat", PackedInt32Array())
 	var reg_off: PackedInt32Array = d.get("reg_off", PackedInt32Array())
 	var reg_meta: Array = d.get("reg_meta", [])
@@ -309,7 +314,8 @@ func from_binary_payload(d: Dictionary) -> void:
 			reg_parents[i] if i < reg_parents.size() else -1,
 			reg_red[i] if i < reg_red.size() else 0.0,
 			reg_green[i] if i < reg_green.size() else 0.0,
-			reg_blue[i] if i < reg_blue.size() else 0.0
+			reg_blue[i] if i < reg_blue.size() else 0.0,
+			reg_capital_ids[i] if i < reg_capital_ids.size() else -1
 		)
 		var rs := reg_off[i]
 		var re := reg_off[i + 1]
